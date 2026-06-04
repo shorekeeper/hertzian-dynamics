@@ -89,103 +89,103 @@ public final class HertzianConfig {
             cfg.load();
 
             modelCurvature = cfg.getBoolean(
-                    "modelCurvature",
-                    "propagation",
-                    true,
-                    "Apply the Earth-curvature radio horizon to ground waves. "
-                            + "Off gives an infinite flat-world line of sight.");
+                "modelCurvature",
+                "propagation",
+                true,
+                "Apply the Earth-curvature radio horizon to ground waves. "
+                    + "Off gives an infinite flat-world line of sight.");
             earthRadiusM = (float) cfg
-                    .get(
-                            "propagation",
-                            "earthRadiusM",
-                            2_000_000.0,
-                            "Effective Earth radius in metres. Real is 6371000; smaller pulls the "
-                                    + "radio horizon in so links die at shorter range. At the default a "
-                                    + "ground-level pair reaches roughly 6-7 km and a raised antenna far more.",
-                            1000.0,
-                            1.0e8)
-                    .getDouble();
-            earthKFactor = (float) cfg
-                    .get(
-                            "propagation",
-                            "earthKFactor",
-                            1.333_333,
-                            "Atmospheric refraction k-factor; 1.333 is the standard 4/3 Earth.",
-                            0.5,
-                            5.0)
-                    .getDouble();
-            groundRefM = (float) cfg
-                    .get(
-                            "propagation",
-                            "groundReferenceY",
-                            63.0,
-                            "World Y treated as ground level. Antenna height above this drives the horizon.",
-                            0.0,
-                            255.0)
-                    .getDouble();
-            String solar = cfg.getString(
-                    "solarActivity",
+                .get(
                     "propagation",
-                    "MEDIUM",
-                    "Ionospheric solar activity preset. Sets the HF skywave band conditions: "
-                            + "LOW is solar minimum (lower MUF, fewer open bands), HIGH is solar maximum "
-                            + "(higher MUF, more open bands). A realistic world-flavor choice, not a cheat.",
-                    new String[] { "LOW", "MEDIUM", "HIGH" });
+                    "earthRadiusM",
+                    2_000_000.0,
+                    "Effective Earth radius in metres. Real is 6371000; smaller pulls the "
+                        + "radio horizon in so links die at shorter range. At the default a "
+                        + "ground-level pair reaches roughly 6-7 km and a raised antenna far more.",
+                    1000.0,
+                    1.0e8)
+                .getDouble();
+            earthKFactor = (float) cfg
+                .get(
+                    "propagation",
+                    "earthKFactor",
+                    1.333_333,
+                    "Atmospheric refraction k-factor; 1.333 is the standard 4/3 Earth.",
+                    0.5,
+                    5.0)
+                .getDouble();
+            groundRefM = (float) cfg
+                .get(
+                    "propagation",
+                    "groundReferenceY",
+                    63.0,
+                    "World Y treated as ground level. Antenna height above this drives the horizon.",
+                    0.0,
+                    255.0)
+                .getDouble();
+            String solar = cfg.getString(
+                "solarActivity",
+                "propagation",
+                "MEDIUM",
+                "Ionospheric solar activity preset. Sets the HF skywave band conditions: "
+                    + "LOW is solar minimum (lower MUF, fewer open bands), HIGH is solar maximum "
+                    + "(higher MUF, more open bands). A realistic world-flavor choice, not a cheat.",
+                new String[] { "LOW", "MEDIUM", "HIGH" });
             solarActivity = parseSolar(solar);
 
             gpuEnabled = cfg.getBoolean(
-                    "gpuEnabled",
-                    "compute",
-                    true,
-                    "Use the Vulkan GPU compute backend for heavy DSP when available. "
-                            + "Off forces the CPU path. On a host without a working Vulkan device "
-                            + "the engine falls back to CPU automatically regardless of this setting.");
+                "gpuEnabled",
+                "compute",
+                true,
+                "Use the Vulkan GPU compute backend for heavy DSP when available. "
+                    + "Off forces the CPU path. On a host without a working Vulkan device "
+                    + "the engine falls back to CPU automatically regardless of this setting.");
             String mode = cfg.getString(
-                    "zoomDftBackend",
-                    "compute",
-                    "AUTO",
-                    "Backend for the spectrum analyzer DFT, the heaviest analyzer step. "
-                            + "AUTO selects by work size, CPU and GPU force one backend. The result is "
-                            + "identical on both backends; this only trades CPU time for GPU time.",
-                    new String[] { "AUTO", "CPU", "GPU" });
+                "zoomDftBackend",
+                "compute",
+                "AUTO",
+                "Backend for the spectrum analyzer DFT, the heaviest analyzer step. "
+                    + "AUTO selects by work size, CPU and GPU force one backend. The result is "
+                    + "identical on both backends; this only trades CPU time for GPU time.",
+                new String[] { "AUTO", "CPU", "GPU" });
             zoomDftMode = parseMode(mode);
             String pmode = cfg.getString(
-                    "propagationBackend",
-                    "compute",
-                    "AUTO",
-                    "Backend for the batched voxel absorption raycast. AUTO selects by batch size, "
-                            + "CPU and GPU force one backend. The result is backend independent within the "
-                            + "self-test tolerance; this only trades CPU time for GPU time. The live audio "
-                            + "propagation does not use this path yet; it serves the batched raycast API.",
-                    new String[] { "AUTO", "CPU", "GPU" });
+                "propagationBackend",
+                "compute",
+                "AUTO",
+                "Backend for the batched voxel absorption raycast. AUTO selects by batch size, "
+                    + "CPU and GPU force one backend. The result is backend independent within the "
+                    + "self-test tolerance; this only trades CPU time for GPU time. The live audio "
+                    + "propagation does not use this path yet; it serves the batched raycast API.",
+                new String[] { "AUTO", "CPU", "GPU" });
             propagationMode = parseMode(pmode);
             propagationAutoThreshold = cfg
-                    .get(
-                            "compute",
-                            "propagationAutoThreshold",
-                            256,
-                            "AUTO-mode ray-count threshold for the raycast. Batches smaller than this run "
-                                    + "on the CPU because the GPU submission overhead would not pay off.",
-                            1,
-                            100_000)
-                    .getInt();
-            zoomDftAutoThreshold = cfg
-                    .get(
-                            "compute",
-                            "zoomDftAutoThreshold",
-                            16_384,
-                            "AUTO-mode work threshold for the zoom DFT (sample count times bin count). "
-                                    + "Scans below this run on the CPU because the GPU submission overhead "
-                                    + "would not pay off. Lower it to push more work to the GPU.",
-                            0,
-                            100_000_000)
-                    .getInt();
-            logComputeBackend = cfg.getBoolean(
-                    "logComputeBackend",
+                .get(
                     "compute",
-                    false,
-                    "Periodically log which backend the analyzer DFT used and the dispatch counts, "
-                            + "so an operator can confirm the GPU path is active.");
+                    "propagationAutoThreshold",
+                    256,
+                    "AUTO-mode ray-count threshold for the raycast. Batches smaller than this run "
+                        + "on the CPU because the GPU submission overhead would not pay off.",
+                    1,
+                    100_000)
+                .getInt();
+            zoomDftAutoThreshold = cfg
+                .get(
+                    "compute",
+                    "zoomDftAutoThreshold",
+                    16_384,
+                    "AUTO-mode work threshold for the zoom DFT (sample count times bin count). "
+                        + "Scans below this run on the CPU because the GPU submission overhead "
+                        + "would not pay off. Lower it to push more work to the GPU.",
+                    0,
+                    100_000_000)
+                .getInt();
+            logComputeBackend = cfg.getBoolean(
+                "logComputeBackend",
+                "compute",
+                false,
+                "Periodically log which backend the analyzer DFT used and the dispatch counts, "
+                    + "so an operator can confirm the GPU path is active.");
         } finally {
             if (cfg.hasChanged()) cfg.save();
         }

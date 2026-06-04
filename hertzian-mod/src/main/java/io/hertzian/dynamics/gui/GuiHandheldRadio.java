@@ -99,34 +99,34 @@ public final class GuiHandheldRadio extends HertzianGui {
         int start = pl + (pw - total) / 2;
         for (int i = 0; i < steps.length; i++) {
             buttonList.add(
-                    ScopeButton.step(BTN_STEP_BASE + i, start + i * (btnW + gap), pt + 92, btnW, 14, labels[i], steps[i]));
+                ScopeButton.step(BTN_STEP_BASE + i, start + i * (btnW + gap), pt + 92, btnW, 14, labels[i], steps[i]));
         }
 
         String modLabel = s != null ? ItemHandheldRadio.modulation(s)
-                .name() : "NARROW_FM";
+            .name() : "NARROW_FM";
         buttonList.add(new ScopeButton(BTN_MOD, pl + 18, pt + 112, 110, 16, "Mode: " + modLabel));
         buttonList.add(new ScopeButton(BTN_PWR_DEC, pl + 132, pt + 112, 50, 16, "- Pwr"));
         buttonList.add(new ScopeButton(BTN_PWR_INC, pl + 184, pt + 112, 46, 16, "+ Pwr"));
 
         // Receive controls.
         volumeSlider = new Slider(
-                SLD_VOLUME,
-                pl + 18,
-                pt + 156,
-                pw - 36,
-                16,
-                "Vol",
-                s != null ? ItemHandheldRadio.volume(s) : 0.8f);
+            SLD_VOLUME,
+            pl + 18,
+            pt + 156,
+            pw - 36,
+            16,
+            "Vol",
+            s != null ? ItemHandheldRadio.volume(s) : 0.8f);
         buttonList.add(volumeSlider);
 
         squelchSlider = new Slider(
-                SLD_SQUELCH,
-                pl + 18,
-                pt + 178,
-                pw - 36,
-                16,
-                "Squelch",
-                s != null ? ItemHandheldRadio.squelch(s) : 0.25f);
+            SLD_SQUELCH,
+            pl + 18,
+            pt + 178,
+            pw - 36,
+            16,
+            "Squelch",
+            s != null ? ItemHandheldRadio.squelch(s) : 0.25f);
         buttonList.add(squelchSlider);
 
         boolean mon = s != null && ItemHandheldRadio.monitor(s);
@@ -227,18 +227,18 @@ public final class GuiHandheldRadio extends HertzianGui {
 
     private void send(ItemStack s) {
         NetworkHandler.CHANNEL.sendToServer(
-                new PacketHandheldSettings(
-                        ItemHandheldRadio.isPowered(s),
-                        ItemHandheldRadio.tunedHz(s),
-                        ItemHandheldRadio.bandwidthHz(s),
-                        ItemHandheldRadio.txPowerW(s),
-                        ItemHandheldRadio.modulation(s)
-                                .code(),
-                        ItemHandheldRadio.volume(s),
-                        ItemHandheldRadio.squelch(s),
-                        ItemHandheldRadio.monitor(s),
-                        ItemHandheldRadio.rogerBeep(s),
-                        ItemHandheldRadio.selfMonitor(s)));
+            new PacketHandheldSettings(
+                ItemHandheldRadio.isPowered(s),
+                ItemHandheldRadio.tunedHz(s),
+                ItemHandheldRadio.bandwidthHz(s),
+                ItemHandheldRadio.txPowerW(s),
+                ItemHandheldRadio.modulation(s)
+                    .code(),
+                ItemHandheldRadio.volume(s),
+                ItemHandheldRadio.squelch(s),
+                ItemHandheldRadio.monitor(s),
+                ItemHandheldRadio.rogerBeep(s),
+                ItemHandheldRadio.selfMonitor(s)));
     }
 
     @Override
@@ -258,11 +258,11 @@ public final class GuiHandheldRadio extends HertzianGui {
 
         // Model name and tier.
         drawCenteredString(
-                fontRendererObj,
-                model.displayName() + "  (T" + model.tier() + ")",
-                pl + pw / 2,
-                pt + 16,
-                COL_LCD_TEXT);
+            fontRendererObj,
+            model.displayName() + "  (T" + model.tier() + ")",
+            pl + pw / 2,
+            pt + 16,
+            COL_LCD_TEXT);
 
         // Frequency LCD. Dim when the set is off.
         String freq = String.format("%10.4f MHz", ItemHandheldRadio.tunedHz(s) / 1.0e6);
@@ -270,9 +270,9 @@ public final class GuiHandheldRadio extends HertzianGui {
 
         // Mode, power and RX lamp.
         String info = ItemHandheldRadio.modulation(s)
-                .name() + "   "
-                + ItemHandheldRadio.txPowerW(s)
-                + " W";
+            .name() + "   "
+            + ItemHandheldRadio.txPowerW(s)
+            + " W";
         drawString(fontRendererObj, info, pl + 18, pt + 56, COL_LABEL);
 
         float[] wave = ClientAudioBridge.latestWaveform(voiceKey);
@@ -285,11 +285,11 @@ public final class GuiHandheldRadio extends HertzianGui {
         // Hints.
         drawString(fontRendererObj, "Shift + step = x10", pl + 18, pt + 244, COL_LABEL);
         drawString(
-                fontRendererObj,
-                "Hold V to talk. Sneak + right-click in world to toggle power.",
-                pl + 18,
-                pt + panelHeight - 14,
-                COL_LABEL);
+            fontRendererObj,
+            "Hold V to talk. Sneak + right-click in world to toggle power.",
+            pl + 18,
+            pt + panelHeight - 14,
+            COL_LABEL);
     }
 
     private static boolean hasEnergy(float[] wave) {

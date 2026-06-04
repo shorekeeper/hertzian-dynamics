@@ -70,14 +70,11 @@ public final class CommandHertzianCompute extends CommandBase {
                     return;
                 }
                 HertzianConfig.zoomDftMode = mode;
-                WorldRfState.setComputePolicyAll(
-                        RfCore.WORKLOAD_ZOOM_DFT,
-                        mode,
-                        HertzianConfig.zoomDftAutoThreshold);
+                WorldRfState.setComputePolicyAll(RfCore.WORKLOAD_ZOOM_DFT, mode, HertzianConfig.zoomDftAutoThreshold);
                 msg(
-                        sender,
-                        EnumChatFormatting.GREEN,
-                        "zoom DFT backend set to " + modeName(mode) + " (runtime only, not persisted)");
+                    sender,
+                    EnumChatFormatting.GREEN,
+                    "zoom DFT backend set to " + modeName(mode) + " (runtime only, not persisted)");
                 break;
             }
             case "raycast": {
@@ -91,14 +88,12 @@ public final class CommandHertzianCompute extends CommandBase {
                     return;
                 }
                 HertzianConfig.propagationMode = mode;
-                WorldRfState.setComputePolicyAll(
-                        RfCore.WORKLOAD_PROPAGATION,
-                        mode,
-                        HertzianConfig.propagationAutoThreshold);
+                WorldRfState
+                    .setComputePolicyAll(RfCore.WORKLOAD_PROPAGATION, mode, HertzianConfig.propagationAutoThreshold);
                 msg(
-                        sender,
-                        EnumChatFormatting.GREEN,
-                        "raycast backend set to " + modeName(mode) + " (runtime only, not persisted)");
+                    sender,
+                    EnumChatFormatting.GREEN,
+                    "raycast backend set to " + modeName(mode) + " (runtime only, not persisted)");
                 break;
             }
             case "threshold": {
@@ -136,16 +131,19 @@ public final class CommandHertzianCompute extends CommandBase {
 
     private void sendStats(ICommandSender sender) {
         msg(
-                sender,
-                EnumChatFormatting.AQUA,
-                "zoom DFT backend=" + modeName(HertzianConfig.zoomDftMode)
-                        + " threshold=" + HertzianConfig.zoomDftAutoThreshold
-                        + " gpuEnabled=" + HertzianConfig.gpuEnabled);
+            sender,
+            EnumChatFormatting.AQUA,
+            "zoom DFT backend=" + modeName(HertzianConfig.zoomDftMode)
+                + " threshold="
+                + HertzianConfig.zoomDftAutoThreshold
+                + " gpuEnabled="
+                + HertzianConfig.gpuEnabled);
         msg(
-                sender,
-                EnumChatFormatting.AQUA,
-                "raycast backend=" + modeName(HertzianConfig.propagationMode)
-                        + " threshold=" + HertzianConfig.propagationAutoThreshold);
+            sender,
+            EnumChatFormatting.AQUA,
+            "raycast backend=" + modeName(HertzianConfig.propagationMode)
+                + " threshold="
+                + HertzianConfig.propagationAutoThreshold);
         List<String> rlines = WorldRfState.describeComputeAll(RfCore.WORKLOAD_PROPAGATION);
         for (String l : rlines) {
             msg(sender, EnumChatFormatting.GRAY, l);

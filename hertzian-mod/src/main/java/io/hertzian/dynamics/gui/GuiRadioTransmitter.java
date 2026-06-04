@@ -600,7 +600,7 @@ public final class GuiRadioTransmitter extends HertzianGui {
         if (id == null || id.isEmpty()) return "(no track)";
         if (StationLibrary.isPlaylistTrack(id)) {
             return StationLibrary.playlistDisplayName(StationLibrary.playlistOf(id)) + " / "
-                    + StationLibrary.trackNameOf(id);
+                + StationLibrary.trackNameOf(id);
         }
         return id;
     }

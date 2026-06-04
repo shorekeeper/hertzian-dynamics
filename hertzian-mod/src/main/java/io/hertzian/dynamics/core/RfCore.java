@@ -188,7 +188,7 @@ public final class RfCore implements AutoCloseable {
      * on this runtime and is avoided.
      */
     public void raycastBatch(VoxelGrid grid, MaterialTable materials, float[] queries, int count, double frequencyHz,
-                             float budgetDb, float[] outDb) {
+        float budgetDb, float[] outDb) {
         checkOpen();
         if (count <= 0) return;
         if (queries.length < count * 8 || outDb.length < count) {
@@ -202,15 +202,8 @@ public final class RfCore implements AutoCloseable {
             long outBytes = (long) count * Float.BYTES;
             MemorySegment out = arena.allocate(outBytes);
 
-            int rc = (int) Native.HD_RAYCAST_BATCH.invokeExact(
-                    handle,
-                    grid.handle(),
-                    materials.handle(),
-                    in,
-                    count,
-                    frequencyHz,
-                    budgetDb,
-                    out);
+            int rc = (int) Native.HD_RAYCAST_BATCH
+                .invokeExact(handle, grid.handle(), materials.handle(), in, count, frequencyHz, budgetDb, out);
             ErrorCode.throwIfError(rc, "hd_raycast_batch");
             MemorySegment.copy(out, ValueLayout.JAVA_FLOAT, 0L, outDb, 0, count);
         } catch (HertzianException e) {

@@ -65,7 +65,8 @@ public final class StationLibrary {
         if (dir == null || !dir.isDirectory()) return out;
 
         // Root tracks.
-        File[] rootFiles = dir.listFiles((d, name) -> name.toLowerCase()
+        File[] rootFiles = dir.listFiles(
+            (d, name) -> name.toLowerCase()
                 .endsWith(".qoa"));
         if (rootFiles != null) {
             List<String> rootNames = new ArrayList<>();
@@ -85,7 +86,8 @@ public final class StationLibrary {
             }
             playlists.sort(Comparator.comparing(File::getName));
             for (File folder : playlists) {
-                File[] tracks = folder.listFiles((d, name) -> name.toLowerCase()
+                File[] tracks = folder.listFiles(
+                    (d, name) -> name.toLowerCase()
                         .endsWith(".qoa"));
                 if (tracks == null) continue;
                 List<String> trackNames = new ArrayList<>();
@@ -170,8 +172,7 @@ public final class StationLibrary {
     }
 
     private static boolean isPlaylistFolder(String name) {
-        return isSafeName(name) && name.startsWith(PLAYLIST_PREFIX)
-                && name.length() > PLAYLIST_PREFIX.length();
+        return isSafeName(name) && name.startsWith(PLAYLIST_PREFIX) && name.length() > PLAYLIST_PREFIX.length();
     }
 
     /** Reject empty, dot, and any name carrying a path separator. */

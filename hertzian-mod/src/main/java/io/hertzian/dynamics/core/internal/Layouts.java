@@ -93,13 +93,13 @@ public final class Layouts {
 
     /** Compute dispatch counters. 32 bytes, alignment 8. */
     public static final StructLayout COMPUTE_STATS = MemoryLayout
-            .structLayout(
-                    ValueLayout.JAVA_LONG.withName("cpu_calls"),
-                    ValueLayout.JAVA_LONG.withName("gpu_calls"),
-                    ValueLayout.JAVA_LONG.withName("fallback_calls"),
-                    ValueLayout.JAVA_INT.withName("last_backend"),
-                    ValueLayout.JAVA_INT.withName("gpu_available"))
-            .withName("hd_compute_stats_t");
+        .structLayout(
+            ValueLayout.JAVA_LONG.withName("cpu_calls"),
+            ValueLayout.JAVA_LONG.withName("gpu_calls"),
+            ValueLayout.JAVA_LONG.withName("fallback_calls"),
+            ValueLayout.JAVA_INT.withName("last_backend"),
+            ValueLayout.JAVA_INT.withName("gpu_available"))
+        .withName("hd_compute_stats_t");
 
     static {
         // Compile-time sanity checks; mismatches with the Rust

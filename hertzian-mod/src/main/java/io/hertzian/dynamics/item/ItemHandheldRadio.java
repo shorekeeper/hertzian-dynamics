@@ -89,7 +89,7 @@ public final class ItemHandheldRadio extends Item {
     public IIcon getIconFromDamage(int meta) {
         if (icons == null) return super.getIconFromDamage(meta);
         return icons[RadioModel.byIndex(meta)
-                .index()];
+            .index()];
     }
 
     @Override
@@ -114,12 +114,12 @@ public final class ItemHandheldRadio extends Item {
             }
         } else {
             player.openGui(
-                    io.hertzian.dynamics.HertzianDynamics.INSTANCE,
-                    GuiIds.HANDHELD_RADIO,
-                    world,
-                    player.getEntityId(),
-                    0,
-                    0);
+                io.hertzian.dynamics.HertzianDynamics.INSTANCE,
+                GuiIds.HANDHELD_RADIO,
+                world,
+                player.getEntityId(),
+                0,
+                0);
         }
         return stack;
     }
@@ -145,7 +145,7 @@ public final class ItemHandheldRadio extends Item {
 
     public static boolean isPowered(ItemStack stack) {
         return stack.hasTagCompound() && stack.getTagCompound()
-                .getBoolean("powered");
+            .getBoolean("powered");
     }
 
     public static void setPowered(ItemStack stack, boolean v) {
@@ -236,7 +236,7 @@ public final class ItemHandheldRadio extends Item {
     public static boolean rogerBeep(ItemStack stack) {
         if (!model(stack).beepRemovable()) return true;
         return stack.hasTagCompound() && stack.getTagCompound()
-                .getBoolean("roger");
+            .getBoolean("roger");
     }
 
     public static void setRogerBeep(ItemStack stack, boolean v) {
@@ -247,7 +247,7 @@ public final class ItemHandheldRadio extends Item {
     /** Monitor flag. While set the squelch is forced open. */
     public static boolean monitor(ItemStack stack) {
         return stack.hasTagCompound() && stack.getTagCompound()
-                .getBoolean("mon");
+            .getBoolean("mon");
     }
 
     public static void setMonitor(ItemStack stack, boolean v) {
@@ -263,7 +263,7 @@ public final class ItemHandheldRadio extends Item {
      */
     public static boolean selfMonitor(ItemStack stack) {
         return stack.hasTagCompound() && stack.getTagCompound()
-                .getBoolean("self");
+            .getBoolean("self");
     }
 
     public static void setSelfMonitor(ItemStack stack, boolean v) {

@@ -10,14 +10,14 @@ import net.minecraft.item.ItemStack;
 
 import io.hertzian.dynamics.HertzianDynamics;
 import io.hertzian.dynamics.core.Modulation;
+import io.hertzian.dynamics.core.NoiseEnvironment;
 import io.hertzian.dynamics.core.SpectrumChunk;
 import io.hertzian.dynamics.core.SpectrumManager;
 import io.hertzian.dynamics.item.ItemHandheldRadio;
+import io.hertzian.dynamics.item.RadioModel;
 import io.hertzian.dynamics.net.NetworkHandler;
 import io.hertzian.dynamics.net.PacketAudioChunk;
 import io.hertzian.dynamics.player.HertzianPlayerRadio;
-import io.hertzian.dynamics.core.NoiseEnvironment;
-import io.hertzian.dynamics.item.RadioModel;
 
 /**
  * Server-side registry for player Handheld Radios. Each entry tracks the
@@ -145,7 +145,7 @@ public final class HandheldRadioRegistry {
         // Detect a tuning change and drop the stale slots so the next
         // registration rebuilds them on the new channel.
         boolean retuned = tunedHz != st.lastTunedHz || bandwidthHz != st.lastBandwidthHz
-                || mod.code() != st.lastModCode;
+            || mod.code() != st.lastModCode;
         if (retuned) {
             world.releaseReceiverByKey(st.receiverKey);
             if (st.emissionLive) {
@@ -163,18 +163,18 @@ public final class HandheldRadioRegistry {
         // future location-aware value can feed in here.
         RadioModel rm = ItemHandheldRadio.model(stack);
         SpectrumManager.ReceiverParameters rxParams = new SpectrumManager.ReceiverParameters(
-                tunedHz,
-                bandwidthHz,
-                mod,
-                1.0f,
-                (float) player.posX,
-                (float) player.posY + 1.6f,
-                (float) player.posZ,
-                0f,
-                0f,
-                0f,
-                rm.noiseFigureDb(),
-                NoiseEnvironment.RESIDENTIAL);
+            tunedHz,
+            bandwidthHz,
+            mod,
+            1.0f,
+            (float) player.posX,
+            (float) player.posY + 1.6f,
+            (float) player.posZ,
+            0f,
+            0f,
+            0f,
+            rm.noiseFigureDb(),
+            NoiseEnvironment.RESIDENTIAL);
         int rxId = world.getOrRegisterReceiver(st.receiverKey, rxParams);
 
         // Emission slot: squelched to push to talk activity. The radio is
@@ -185,21 +185,21 @@ public final class HandheldRadioRegistry {
         // to a large negative value and read as "transmitting" the moment
         // the radio was powered.
         boolean transmitting = st.lastVoiceTick != Long.MIN_VALUE
-                && (worldTick - st.lastVoiceTick) <= VOICE_SQUELCH_HOLD_TICKS;
+            && (worldTick - st.lastVoiceTick) <= VOICE_SQUELCH_HOLD_TICKS;
         if (transmitting) {
             SpectrumManager.EmissionParameters txParams = new SpectrumManager.EmissionParameters(
-                    mod,
-                    (float) player.posX,
-                    (float) player.posY + 1.6f,
-                    (float) player.posZ,
-                    0f,
-                    0f,
-                    0f,
-                    txPowerW,
-                    1.0f,
-                    tunedHz,
-                    bandwidthHz,
-                    16_384);
+                mod,
+                (float) player.posX,
+                (float) player.posY + 1.6f,
+                (float) player.posZ,
+                0f,
+                0f,
+                0f,
+                txPowerW,
+                1.0f,
+                tunedHz,
+                bandwidthHz,
+                16_384);
             world.getOrRegisterEmission(st.emissionKey, txParams, false, 0, 0f, 0f);
             st.emissionLive = true;
         } else if (st.emissionLive) {
@@ -221,14 +221,14 @@ public final class HandheldRadioRegistry {
 
         // Mix one chunk for the listen path.
         SpectrumChunk chunk = world.manager()
-                .mix(
-                        world.grid(),
-                        world.materials(),
-                        world.ionosphere(),
-                        rxId,
-                        io.hertzian.dynamics.tick.RadioTickHandler.CHUNK_SAMPLES,
-                        worldTick,
-                        localHour);
+            .mix(
+                world.grid(),
+                world.materials(),
+                world.ionosphere(),
+                rxId,
+                io.hertzian.dynamics.tick.RadioTickHandler.CHUNK_SAMPLES,
+                worldTick,
+                localHour);
         if (chunk == null) return;
 
         // Squelch gate. A closed gate sends nothing, so the receiver goes
@@ -240,7 +240,7 @@ public final class HandheldRadioRegistry {
         if (!open) return;
 
         io.hertzian.dynamics.core.ChunkDemodulator demod = world
-                .getOrCreateDemodulator(st.receiverKey, mod, chunk.sampleRateHz());
+            .getOrCreateDemodulator(st.receiverKey, mod, chunk.sampleRateHz());
         short[] pcm = new short[chunk.sampleCount()];
         demod.demodulateToPcm16(chunk, pcm);
 
@@ -254,16 +254,16 @@ public final class HandheldRadioRegistry {
 
         String voiceKey = io.hertzian.dynamics.audio.ClientAudioBridge.handheldKey(player.getUniqueID());
         NetworkHandler.CHANNEL.sendTo(
-                new PacketAudioChunk(
-                        voiceKey,
-                        player.worldObj.provider.dimensionId,
-                        (int) player.posX,
-                        (int) player.posY,
-                        (int) player.posZ,
-                        mod,
-                        (int) chunk.sampleRateHz(),
-                        pcm),
-                player);
+            new PacketAudioChunk(
+                voiceKey,
+                player.worldObj.provider.dimensionId,
+                (int) player.posX,
+                (int) player.posY,
+                (int) player.posZ,
+                mod,
+                (int) chunk.sampleRateHz(),
+                pcm),
+            player);
     }
 
     public static void deliverVoice(EntityPlayerMP player, float[] pcm) {
@@ -285,27 +285,27 @@ public final class HandheldRadioRegistry {
             if (stack == null) return;
             int emissionId = lookupOrRegisterEmission(world, st, stack, player);
             world.manager()
-                    .pushAudio(emissionId, pcm);
+                .pushAudio(emissionId, pcm);
         } catch (Throwable t) {
             HertzianDynamics.LOGGER.warn("handheld voice push failed", t);
         }
     }
 
     private static int lookupOrRegisterEmission(WorldRfState world, RadioState st, ItemStack stack,
-                                                EntityPlayerMP player) {
+        EntityPlayerMP player) {
         SpectrumManager.EmissionParameters params = new SpectrumManager.EmissionParameters(
-                ItemHandheldRadio.modulation(stack),
-                (float) player.posX,
-                (float) player.posY + 1.6f,
-                (float) player.posZ,
-                0f,
-                0f,
-                0f,
-                ItemHandheldRadio.txPowerW(stack),
-                1.0f,
-                ItemHandheldRadio.tunedHz(stack),
-                ItemHandheldRadio.bandwidthHz(stack),
-                16_384);
+            ItemHandheldRadio.modulation(stack),
+            (float) player.posX,
+            (float) player.posY + 1.6f,
+            (float) player.posZ,
+            0f,
+            0f,
+            0f,
+            ItemHandheldRadio.txPowerW(stack),
+            1.0f,
+            ItemHandheldRadio.tunedHz(stack),
+            ItemHandheldRadio.bandwidthHz(stack),
+            16_384);
         return world.getOrRegisterEmission(st.emissionKey, params, false, 0, 0f, 0f);
     }
 

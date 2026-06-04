@@ -49,7 +49,7 @@ public final class PacketHandheldSettings implements IMessage {
     public PacketHandheldSettings() {}
 
     public PacketHandheldSettings(boolean powered, double tunedHz, float bandwidthHz, float txPowerW, int modCode,
-                                  float volume, float squelch, boolean monitor, boolean rogerBeep, boolean selfMonitor) {
+        float volume, float squelch, boolean monitor, boolean rogerBeep, boolean selfMonitor) {
         this.powered = powered;
         this.tunedHz = tunedHz;
         this.bandwidthHz = bandwidthHz;

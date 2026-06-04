@@ -36,11 +36,11 @@ import io.hertzian.dynamics.world.WorldRfState;
  * </ul>
  */
 @Mod(
-        modid = HertzianRefs.MODID,
-        name = HertzianRefs.NAME,
-        version = HertzianRefs.VERSION,
-        dependencies = HertzianRefs.DEPENDENCIES,
-        acceptedMinecraftVersions = "[1.7.10]")
+    modid = HertzianRefs.MODID,
+    name = HertzianRefs.NAME,
+    version = HertzianRefs.VERSION,
+    dependencies = HertzianRefs.DEPENDENCIES,
+    acceptedMinecraftVersions = "[1.7.10]")
 public final class HertzianDynamics {
 
     public static final Logger LOGGER = LogManager.getLogger(HertzianRefs.NAME);
@@ -73,9 +73,9 @@ public final class HertzianDynamics {
         LOGGER.info("Hertzian Dynamics init");
         io.hertzian.dynamics.net.NetworkHandler.register();
         cpw.mods.fml.common.network.NetworkRegistry.INSTANCE
-                .registerGuiHandler(this, new io.hertzian.dynamics.gui.GuiHandler());
+            .registerGuiHandler(this, new io.hertzian.dynamics.gui.GuiHandler());
         net.minecraftforge.common.ForgeChunkManager
-                .setForcedChunkLoadingCallback(this, io.hertzian.dynamics.world.ChunkLoadManager.CALLBACK);
+            .setForcedChunkLoadingCallback(this, io.hertzian.dynamics.world.ChunkLoadManager.CALLBACK);
         MinecraftForge.EVENT_BUS.register(new VoxelSyncListener());
 
         // Radio gear property lifecycle. The handler listens on both
@@ -84,8 +84,8 @@ public final class HertzianDynamics {
         RadioGearEvents gearEvents = new RadioGearEvents();
         MinecraftForge.EVENT_BUS.register(gearEvents);
         cpw.mods.fml.common.FMLCommonHandler.instance()
-                .bus()
-                .register(gearEvents);
+            .bus()
+            .register(gearEvents);
 
         proxy.init(event);
     }

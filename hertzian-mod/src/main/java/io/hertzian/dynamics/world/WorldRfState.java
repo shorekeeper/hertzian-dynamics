@@ -1,15 +1,15 @@
 package io.hertzian.dynamics.world;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.World;
 
-import io.hertzian.dynamics.core.ComputeStats;
 import io.hertzian.dynamics.HertzianDynamics;
+import io.hertzian.dynamics.core.ComputeStats;
 import io.hertzian.dynamics.core.Ionosphere;
 import io.hertzian.dynamics.core.MaterialTable;
 import io.hertzian.dynamics.core.RfCore;
@@ -94,36 +94,36 @@ public final class WorldRfState implements AutoCloseable {
         // Apply the configured zoom DFT backend policy. This is realism
         // neutral; it only selects where the analyzer DFT runs.
         core.setComputePolicy(
-                RfCore.WORKLOAD_ZOOM_DFT,
-                io.hertzian.dynamics.HertzianConfig.zoomDftMode,
-                io.hertzian.dynamics.HertzianConfig.zoomDftAutoThreshold);
+            RfCore.WORKLOAD_ZOOM_DFT,
+            io.hertzian.dynamics.HertzianConfig.zoomDftMode,
+            io.hertzian.dynamics.HertzianConfig.zoomDftAutoThreshold);
         io.hertzian.dynamics.core.ComputeStats cs = core.computeStats(RfCore.WORKLOAD_ZOOM_DFT);
         core.setComputePolicy(
-                RfCore.WORKLOAD_ZOOM_DFT,
-                io.hertzian.dynamics.HertzianConfig.zoomDftMode,
-                io.hertzian.dynamics.HertzianConfig.zoomDftAutoThreshold);
+            RfCore.WORKLOAD_ZOOM_DFT,
+            io.hertzian.dynamics.HertzianConfig.zoomDftMode,
+            io.hertzian.dynamics.HertzianConfig.zoomDftAutoThreshold);
         core.setComputePolicy(
-                RfCore.WORKLOAD_PROPAGATION,
-                io.hertzian.dynamics.HertzianConfig.propagationMode,
-                io.hertzian.dynamics.HertzianConfig.propagationAutoThreshold);
+            RfCore.WORKLOAD_PROPAGATION,
+            io.hertzian.dynamics.HertzianConfig.propagationMode,
+            io.hertzian.dynamics.HertzianConfig.propagationAutoThreshold);
         io.hertzian.dynamics.core.ComputeStats zs = core.computeStats(RfCore.WORKLOAD_ZOOM_DFT);
         io.hertzian.dynamics.core.ComputeStats ps = core.computeStats(RfCore.WORKLOAD_PROPAGATION);
         HertzianDynamics.LOGGER.info(
-                "rf-core compute for dim {}: gpuEnabled={}, zoomDFT gpu={}, raycast gpu={}",
-                dimensionId,
-                io.hertzian.dynamics.HertzianConfig.gpuEnabled,
-                zs.gpuAvailable(),
-                ps.gpuAvailable());
+            "rf-core compute for dim {}: gpuEnabled={}, zoomDFT gpu={}, raycast gpu={}",
+            dimensionId,
+            io.hertzian.dynamics.HertzianConfig.gpuEnabled,
+            zs.gpuAvailable(),
+            ps.gpuAvailable());
 
         SpectrumManager manager = SpectrumManager.create(core);
         // Push the curvature knobs from the mod config into the native
         // solver so the radio horizon takes effect for every mix in this
         // world.
         manager.setCurvature(
-                io.hertzian.dynamics.HertzianConfig.modelCurvature,
-                io.hertzian.dynamics.HertzianConfig.earthRadiusM,
-                io.hertzian.dynamics.HertzianConfig.earthKFactor,
-                io.hertzian.dynamics.HertzianConfig.groundRefM);
+            io.hertzian.dynamics.HertzianConfig.modelCurvature,
+            io.hertzian.dynamics.HertzianConfig.earthRadiusM,
+            io.hertzian.dynamics.HertzianConfig.earthKFactor,
+            io.hertzian.dynamics.HertzianConfig.groundRefM);
         VoxelGrid grid = VoxelGrid.create(1.0f);
         MaterialTable materials = MaterialTable.createDefaults();
         Ionosphere iono = Ionosphere.create(solarActivityFromConfig());
@@ -190,14 +190,14 @@ public final class WorldRfState implements AutoCloseable {
             try {
                 ComputeStats cs = e.getValue().core.computeStats(workload);
                 out.add(
-                        String.format(
-                                "dim %d: gpu=%d cpu=%d fallback=%d lastGpu=%b gpuAvail=%b",
-                                e.getKey(),
-                                cs.gpuCalls(),
-                                cs.cpuCalls(),
-                                cs.fallbackCalls(),
-                                cs.lastBackendGpu(),
-                                cs.gpuAvailable()));
+                    String.format(
+                        "dim %d: gpu=%d cpu=%d fallback=%d lastGpu=%b gpuAvail=%b",
+                        e.getKey(),
+                        cs.gpuCalls(),
+                        cs.cpuCalls(),
+                        cs.fallbackCalls(),
+                        cs.lastBackendGpu(),
+                        cs.gpuAvailable()));
             } catch (Throwable t) {
                 out.add("dim " + e.getKey() + ": stats unavailable");
             }

@@ -25,55 +25,37 @@ import io.hertzian.dynamics.core.Modulation;
  */
 public enum RadioModel {
 
-    FALCON_HT5("falcon_ht5", "Falcon HT-5", 1,
-            136_000_000.0, 470_000_000.0, 12_500.0, false,
-            new float[] { 0.5f, 2f, 5f },
-            new Modulation[] { Modulation.NARROW_FM, Modulation.WIDE_FM, Modulation.AM },
-            9.0f, 145_000_000.0, 15_000f, true, false),
+    FALCON_HT5("falcon_ht5", "Falcon HT-5", 1, 136_000_000.0, 470_000_000.0, 12_500.0, false,
+        new float[] { 0.5f, 2f, 5f }, new Modulation[] { Modulation.NARROW_FM, Modulation.WIDE_FM, Modulation.AM },
+        9.0f, 145_000_000.0, 15_000f, true, false),
 
-    CHIRP_FRS2("chirp_frs2", "Chirp FRS-2", 0,
-            462_000_000.0, 467_725_000.0, 12_500.0, true,
-            new float[] { 0.5f },
-            new Modulation[] { Modulation.NARROW_FM },
-            18.0f, 462_562_500.0, 12_500f, false, false),
+    CHIRP_FRS2("chirp_frs2", "Chirp FRS-2", 0, 462_000_000.0, 467_725_000.0, 12_500.0, true, new float[] { 0.5f },
+        new Modulation[] { Modulation.NARROW_FM }, 18.0f, 462_562_500.0, 12_500f, false, false),
 
-    POCKET_CB("pocket_cb", "PocketCB HT-27", 0,
-            26_965_000.0, 27_405_000.0, 10_000.0, true,
-            new float[] { 1f, 4f },
-            new Modulation[] { Modulation.AM, Modulation.NARROW_FM },
-            16.0f, 27_185_000.0, 10_000f, true, false),
+    POCKET_CB("pocket_cb", "PocketCB HT-27", 0, 26_965_000.0, 27_405_000.0, 10_000.0, true, new float[] { 1f, 4f },
+        new Modulation[] { Modulation.AM, Modulation.NARROW_FM }, 16.0f, 27_185_000.0, 10_000f, true, false),
 
-    MARINER_VHF("mariner_vhf", "Mariner VHF-H1", 1,
-            156_000_000.0, 162_025_000.0, 25_000.0, true,
-            new float[] { 1f, 5f },
-            new Modulation[] { Modulation.NARROW_FM },
-            8.0f, 156_800_000.0, 25_000f, false, false),
+    MARINER_VHF("mariner_vhf", "Mariner VHF-H1", 1, 156_000_000.0, 162_025_000.0, 25_000.0, true,
+        new float[] { 1f, 5f }, new Modulation[] { Modulation.NARROW_FM }, 8.0f, 156_800_000.0, 25_000f, false, false),
 
-    SPECTRE_TR9("spectre_tr9", "Spectre TR-9", 2,
-            136_000_000.0, 470_000_000.0, 12_500.0, false,
-            new float[] { 1f, 2f, 4f, 6f },
-            new Modulation[] { Modulation.NARROW_FM },
-            5.5f, 446_000_000.0, 12_500f, true, false),
+    SPECTRE_TR9("spectre_tr9", "Spectre TR-9", 2, 136_000_000.0, 470_000_000.0, 12_500.0, false,
+        new float[] { 1f, 2f, 4f, 6f }, new Modulation[] { Modulation.NARROW_FM }, 5.5f, 446_000_000.0, 12_500f, true,
+        false),
 
-    NOMAD_MB44("nomad_mb44", "Nomad MB-44", 2,
-            500_000.0, 470_000_000.0, 1_000.0, false,
-            new float[] { 0.5f, 1f, 2.5f, 5f },
-            new Modulation[] { Modulation.NARROW_FM, Modulation.WIDE_FM, Modulation.AM,
-                    Modulation.USB, Modulation.LSB, Modulation.CW },
-            6.0f, 145_000_000.0, 15_000f, true, true),
+    NOMAD_MB44("nomad_mb44", "Nomad MB-44", 2, 500_000.0, 470_000_000.0, 1_000.0, false,
+        new float[] { 0.5f, 1f, 2.5f, 5f },
+        new Modulation[] { Modulation.NARROW_FM, Modulation.WIDE_FM, Modulation.AM, Modulation.USB, Modulation.LSB,
+            Modulation.CW },
+        6.0f, 145_000_000.0, 15_000f, true, true),
 
-    LONGSHOT_HF("longshot_hf", "Longshot HF-Manpack", 3,
-            3_000_000.0, 30_000_000.0, 1_000.0, false,
-            new float[] { 10f, 20f },
-            new Modulation[] { Modulation.USB, Modulation.LSB, Modulation.CW,
-                    Modulation.AM, Modulation.NARROW_FM },
-            7.0f, 14_200_000.0, 2_700f, true, false),
+    LONGSHOT_HF("longshot_hf", "Longshot HF-Manpack", 3, 3_000_000.0, 30_000_000.0, 1_000.0, false,
+        new float[] { 10f, 20f },
+        new Modulation[] { Modulation.USB, Modulation.LSB, Modulation.CW, Modulation.AM, Modulation.NARROW_FM }, 7.0f,
+        14_200_000.0, 2_700f, true, false),
 
-    CIPHER_T1("cipher_t1", "Cipher T-1", 3,
-            1_500_000.0, 512_000_000.0, 5_000.0, false,
-            new float[] { 1f, 2f, 4f, 8f },
-            new Modulation[] { Modulation.NARROW_FM, Modulation.USB, Modulation.LSB },
-            4.0f, 245_000_000.0, 15_000f, true, false);
+    CIPHER_T1("cipher_t1", "Cipher T-1", 3, 1_500_000.0, 512_000_000.0, 5_000.0, false, new float[] { 1f, 2f, 4f, 8f },
+        new Modulation[] { Modulation.NARROW_FM, Modulation.USB, Modulation.LSB }, 4.0f, 245_000_000.0, 15_000f, true,
+        false);
 
     private final String key;
     private final String displayName;
@@ -91,8 +73,8 @@ public enum RadioModel {
     private final boolean hasWaterfall;
 
     RadioModel(String key, String displayName, int tier, double minHz, double maxHz, double tuningStepHz,
-               boolean fixedGrid, float[] powerSteps, Modulation[] modulations, float noiseFigureDb, double defaultHz,
-               float defaultBandwidthHz, boolean beepRemovable, boolean hasWaterfall) {
+        boolean fixedGrid, float[] powerSteps, Modulation[] modulations, float noiseFigureDb, double defaultHz,
+        float defaultBandwidthHz, boolean beepRemovable, boolean hasWaterfall) {
         this.key = key;
         this.displayName = displayName;
         this.tier = tier;

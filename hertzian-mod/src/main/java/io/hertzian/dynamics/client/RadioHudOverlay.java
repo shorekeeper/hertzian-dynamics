@@ -7,11 +7,11 @@ import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.entity.RenderItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.client.event.RenderGameOverlayEvent;
 
 import org.lwjgl.opengl.GL11;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import io.hertzian.dynamics.audio.ClientAudioBridge;
 import io.hertzian.dynamics.item.ItemHandheldRadio;
 import io.hertzian.dynamics.player.HertzianPlayerRadio;

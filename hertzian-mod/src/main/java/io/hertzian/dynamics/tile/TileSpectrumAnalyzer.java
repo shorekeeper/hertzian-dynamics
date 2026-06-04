@@ -1,8 +1,5 @@
 package io.hertzian.dynamics.tile;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -11,8 +8,8 @@ import cpw.mods.fml.common.network.NetworkRegistry;
 import io.hertzian.dynamics.HertzianConfig;
 import io.hertzian.dynamics.HertzianDynamics;
 import io.hertzian.dynamics.core.ComputeStats;
-import io.hertzian.dynamics.core.RfCore;
 import io.hertzian.dynamics.core.Modulation;
+import io.hertzian.dynamics.core.RfCore;
 import io.hertzian.dynamics.core.SpectrumChunk;
 import io.hertzian.dynamics.core.SpectrumManager;
 import io.hertzian.dynamics.net.NetworkHandler;
@@ -175,7 +172,7 @@ public final class TileSpectrumAnalyzer extends TileEntity {
      * integration sizes do not pay window construction cost on
      * every scan.
      */
-    //private static final Map<Integer, float[]> HANN_CACHE = new HashMap<>();
+    // private static final Map<Integer, float[]> HANN_CACHE = new HashMap<>();
 
     /**
      * Reference dB level the noise floor is biased to when AGC
@@ -185,7 +182,6 @@ public final class TileSpectrumAnalyzer extends TileEntity {
      * jitter to be visible.
      */
     private static final float AGC_BYPASS_FLOOR_DB = -65.0f;
-
 
     /**
      * Smoothing buffer kept across scans. dB-domain exponential
@@ -339,16 +335,18 @@ public final class TileSpectrumAnalyzer extends TileEntity {
      * synchronisation is paranoid insurance against a future
      * refactor that off-loads scans to a worker.
      */
-    /*private static synchronized float[] hannWindow(int n) {
-        float[] w = HANN_CACHE.get(n);
-        if (w != null) return w;
-        w = new float[n];
-        for (int i = 0; i < n; i++) {
-            w[i] = (float) (0.5 - 0.5 * Math.cos(2.0 * Math.PI * i / (n - 1)));
-        }
-        HANN_CACHE.put(n, w);
-        return w;
-    }*/
+    /*
+     * private static synchronized float[] hannWindow(int n) {
+     * float[] w = HANN_CACHE.get(n);
+     * if (w != null) return w;
+     * w = new float[n];
+     * for (int i = 0; i < n; i++) {
+     * w[i] = (float) (0.5 - 0.5 * Math.cos(2.0 * Math.PI * i / (n - 1)));
+     * }
+     * HANN_CACHE.put(n, w);
+     * return w;
+     * }
+     */
 
     /**
      * Integration length picked from span. Linear interpolation
@@ -474,21 +472,22 @@ public final class TileSpectrumAnalyzer extends TileEntity {
         // floor and smoothing below stay here because the smoothing buffer
         // is per-tile state and the bias is a cheap O(BINS) pass.
         float[] raw = new float[BINS];
-        state.core().analyzerDft(iq, n, (float) spanHz, ENGINE_FS, BINS, raw);
+        state.core()
+            .analyzerDft(iq, n, (float) spanHz, ENGINE_FS, BINS, raw);
 
         if (HertzianConfig.logComputeBackend) {
             long now = System.currentTimeMillis();
             if (now - lastComputeLogMs > 10_000L) {
                 lastComputeLogMs = now;
                 ComputeStats cs = state.core()
-                        .computeStats(RfCore.WORKLOAD_ZOOM_DFT);
+                    .computeStats(RfCore.WORKLOAD_ZOOM_DFT);
                 HertzianDynamics.LOGGER.info(
-                        "zoom DFT compute: gpu={} cpu={} fallback={} lastGpu={} gpuAvail={}",
-                        cs.gpuCalls(),
-                        cs.cpuCalls(),
-                        cs.fallbackCalls(),
-                        cs.lastBackendGpu(),
-                        cs.gpuAvailable());
+                    "zoom DFT compute: gpu={} cpu={} fallback={} lastGpu={} gpuAvail={}",
+                    cs.gpuCalls(),
+                    cs.cpuCalls(),
+                    cs.fallbackCalls(),
+                    cs.lastBackendGpu(),
+                    cs.gpuAvailable());
             }
         }
 

@@ -13,7 +13,6 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 import io.hertzian.dynamics.audio.EnvironmentMixer;
 import io.hertzian.dynamics.audio.MicrophoneCapture;
 import io.hertzian.dynamics.audio.MicrophoneConfig;
-import io.hertzian.dynamics.gui.GuiIds;
 import io.hertzian.dynamics.item.ItemHandheldRadio;
 import io.hertzian.dynamics.net.NetworkHandler;
 import io.hertzian.dynamics.net.PacketVoiceUplink;
@@ -100,13 +99,13 @@ public final class PttKeyHandler {
 
     private final KeyBinding ptt = new KeyBinding("key.hertzian.ptt", Keyboard.KEY_V, "key.categories.hertzian");
     private final KeyBinding micCfg = new KeyBinding(
-            "key.hertzian.micConfig",
-            Keyboard.KEY_M,
-            "key.categories.hertzian");
+        "key.hertzian.micConfig",
+        Keyboard.KEY_M,
+        "key.categories.hertzian");
     private final KeyBinding gearKey = new KeyBinding(
-            "key.hertzian.radioGear",
-            Keyboard.KEY_B,
-            "key.categories.hertzian");
+        "key.hertzian.radioGear",
+        Keyboard.KEY_B,
+        "key.categories.hertzian");
 
     private MicrophoneCapture mic;
     private boolean capturing = false;
@@ -120,15 +119,15 @@ public final class PttKeyHandler {
         ClientRegistry.registerKeyBinding(INSTANCE.micCfg);
         ClientRegistry.registerKeyBinding(INSTANCE.gearKey);
         cpw.mods.fml.common.FMLCommonHandler.instance()
-                .bus()
-                .register(INSTANCE);
+            .bus()
+            .register(INSTANCE);
     }
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         if (micCfg.isPressed()) {
             Minecraft.getMinecraft()
-                    .displayGuiScreen(new io.hertzian.dynamics.gui.GuiMicrophoneSelect());
+                .displayGuiScreen(new io.hertzian.dynamics.gui.GuiMicrophoneSelect());
         }
         if (gearKey.isPressed()) {
             NetworkHandler.CHANNEL.sendToServer(new io.hertzian.dynamics.net.PacketOpenRadioGear());
@@ -188,7 +187,7 @@ public final class PttKeyHandler {
             float voiceLevel = (mic != null) ? mic.lastLevel() : 0f;
             float envScale = hasHeadset() ? HEADSET_BLEED_FACTOR : 1.0f;
             float[] env = EnvironmentMixer.get()
-                    .drain(n, voiceLevel);
+                .drain(n, voiceLevel);
             if (pcm.length == 0) {
                 for (int i = 0; i < env.length; i++) env[i] *= envScale;
                 pcm = env;

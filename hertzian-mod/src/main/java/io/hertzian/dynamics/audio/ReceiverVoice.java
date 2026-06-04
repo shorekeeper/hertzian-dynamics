@@ -44,7 +44,6 @@ public final class ReceiverVoice {
         AL10.alSource3f(source, AL10.AL_VELOCITY, 0f, 0f, 0f);
         AL10.alSourcef(source, AL10.AL_GAIN, 1.0f);
 
-
         // Roll-off parameters for room-scale audibility under the
         // AL_INVERSE_DISTANCE_CLAMPED model, which computes gain as
         // ref / (ref + rolloff * (clampedDistance - ref)). With an

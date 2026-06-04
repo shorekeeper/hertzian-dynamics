@@ -15,6 +15,17 @@ hertzian-dynamics/
   hertzian-mod/   Forge 1.7.10 mod (Java 21), calls the cdylib through FFM.
 ```
 
+## Requirements
+
+Hertzian Dynamics targets Forge 1.7.10 on a Java 21+ JVM and depends on the GTNH modern-Java stack.
+
+- **Forge 1.7.10**: 10.13.4.1614 or later.
+- **lwjgl3ify**: runs 1.7.10 on a Java 21+ JVM and provides the LWJGL3 backend the audio path proxies into. The mod cannot load without it.
+- **UniMixins**: the Mixin loader, required for the Paulscode audio tap.
+- **Hodgepodge**: the GTNH compatibility shims that lwjgl3ify expects at runtime.
+
+The JVM must be launched with `--enable-preview --enable-native-access=ALL-UNNAMED` on Java 21, or be Java 22 or later, for the foreign function and memory API the engine bridge uses.
+
 ### rf-core
 
 The engine knows nothing about Minecraft. It models the radio ether as a set of emissions and receivers in metric world space and produces complex baseband chunks for each receiver. Its subsystems:

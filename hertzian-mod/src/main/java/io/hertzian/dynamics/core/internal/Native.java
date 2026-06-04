@@ -118,30 +118,27 @@ public final class Native {
         HD_VERSION_STRING = bind(linker, "hd_version_string", FunctionDescriptor.of(ValueLayout.ADDRESS));
 
         HD_CORE_CREATE = bind(
-                linker,
-                "hd_core_create",
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            linker,
+            "hd_core_create",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         HD_CORE_CREATE_EX = bind(
-                linker,
-                "hd_core_create_ex",
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            linker,
+            "hd_core_create_ex",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         HD_CORE_SET_COMPUTE_POLICY = bind(
-                linker,
-                "hd_core_set_compute_policy",
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_LONG));
+            linker,
+            "hd_core_set_compute_policy",
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_LONG));
         HD_CORE_COMPUTE_STATS = bind(
-                linker,
-                "hd_core_compute_stats",
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS));
+            linker,
+            "hd_core_compute_stats",
+            FunctionDescriptor
+                .of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         HD_CORE_DESTROY = bind(
             linker,
             "hd_core_destroy",
@@ -293,30 +290,30 @@ public final class Native {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS));
         HD_ZOOM_DFT = bind(
-                linker,
-                "hd_zoom_dft",
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_FLOAT,
-                        ValueLayout.JAVA_FLOAT,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS));
+            linker,
+            "hd_zoom_dft",
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_FLOAT,
+                ValueLayout.JAVA_FLOAT,
+                ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS));
         HD_RAYCAST_BATCH = bind(
-                linker,
-                "hd_raycast_batch",
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_DOUBLE,
-                        ValueLayout.JAVA_FLOAT,
-                        ValueLayout.ADDRESS));
+            linker,
+            "hd_raycast_batch",
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_DOUBLE,
+                ValueLayout.JAVA_FLOAT,
+                ValueLayout.ADDRESS));
         loaded = true;
         verifyAbiOrThrow();
     }

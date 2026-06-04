@@ -14,4 +14,4 @@ package io.hertzian.dynamics.core;
  * @param gpuAvailable   true if a GPU path exists for this workload
  */
 public record ComputeStats(long cpuCalls, long gpuCalls, long fallbackCalls, boolean lastBackendGpu,
-                           boolean gpuAvailable) {}
+    boolean gpuAvailable) {}

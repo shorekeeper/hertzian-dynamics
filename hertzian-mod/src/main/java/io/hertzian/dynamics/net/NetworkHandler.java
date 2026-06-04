@@ -31,79 +31,79 @@ public final class NetworkHandler {
         CHANNEL.registerMessage(PacketAudioChunk.Handler.class, PacketAudioChunk.class, id++, Side.CLIENT);
 
         server(
-                new DeferredServerHandler<PacketReceiverSettings>(new PacketReceiverSettings.Handler()) {},
-                PacketReceiverSettings.class,
-                id++);
+            new DeferredServerHandler<PacketReceiverSettings>(new PacketReceiverSettings.Handler()) {},
+            PacketReceiverSettings.class,
+            id++);
         server(
-                new DeferredServerHandler<PacketTransmitterSettings>(new PacketTransmitterSettings.Handler()) {},
-                PacketTransmitterSettings.class,
-                id++);
+            new DeferredServerHandler<PacketTransmitterSettings>(new PacketTransmitterSettings.Handler()) {},
+            PacketTransmitterSettings.class,
+            id++);
         server(
-                new DeferredServerHandler<PacketJammerSettings>(new PacketJammerSettings.Handler()) {},
-                PacketJammerSettings.class,
-                id++);
+            new DeferredServerHandler<PacketJammerSettings>(new PacketJammerSettings.Handler()) {},
+            PacketJammerSettings.class,
+            id++);
         server(
-                new DeferredServerHandler<PacketSpectrumSettings>(new PacketSpectrumSettings.Handler()) {},
-                PacketSpectrumSettings.class,
-                id++);
+            new DeferredServerHandler<PacketSpectrumSettings>(new PacketSpectrumSettings.Handler()) {},
+            PacketSpectrumSettings.class,
+            id++);
 
         CHANNEL.registerMessage(PacketSpectrumData.Handler.class, PacketSpectrumData.class, id++, Side.CLIENT);
 
         server(
-                new DeferredServerHandler<PacketVoiceUplink>(new PacketVoiceUplink.Handler()) {},
-                PacketVoiceUplink.class,
-                id++);
+            new DeferredServerHandler<PacketVoiceUplink>(new PacketVoiceUplink.Handler()) {},
+            PacketVoiceUplink.class,
+            id++);
         server(
-                new DeferredServerHandler<PacketHandheldSettings>(new PacketHandheldSettings.Handler()) {},
-                PacketHandheldSettings.class,
-                id++);
+            new DeferredServerHandler<PacketHandheldSettings>(new PacketHandheldSettings.Handler()) {},
+            PacketHandheldSettings.class,
+            id++);
 
         CHANNEL.registerMessage(PacketReceiverScope.Handler.class, PacketReceiverScope.class, id++, Side.CLIENT);
 
         server(
-                new DeferredServerHandler<PacketRelaySettings>(new PacketRelaySettings.Handler()) {},
-                PacketRelaySettings.class,
-                id++);
+            new DeferredServerHandler<PacketRelaySettings>(new PacketRelaySettings.Handler()) {},
+            PacketRelaySettings.class,
+            id++);
         server(
-                new DeferredServerHandler<PacketStationControl>(new PacketStationControl.Handler()) {},
-                PacketStationControl.class,
-                id++);
+            new DeferredServerHandler<PacketStationControl>(new PacketStationControl.Handler()) {},
+            PacketStationControl.class,
+            id++);
 
         CHANNEL.registerMessage(PacketStationList.Handler.class, PacketStationList.class, id++, Side.CLIENT);
 
         server(
-                new DeferredServerHandler<PacketReceiverStorePreset>(new PacketReceiverStorePreset.Handler()) {},
-                PacketReceiverStorePreset.class,
-                id++);
+            new DeferredServerHandler<PacketReceiverStorePreset>(new PacketReceiverStorePreset.Handler()) {},
+            PacketReceiverStorePreset.class,
+            id++);
 
         CHANNEL.registerMessage(PacketTeletypeData.Handler.class, PacketTeletypeData.class, id++, Side.CLIENT);
 
         server(
-                new DeferredServerHandler<PacketTeletypeSettings>(new PacketTeletypeSettings.Handler()) {},
-                PacketTeletypeSettings.class,
-                id++);
+            new DeferredServerHandler<PacketTeletypeSettings>(new PacketTeletypeSettings.Handler()) {},
+            PacketTeletypeSettings.class,
+            id++);
         server(
-                new DeferredServerHandler<PacketTelegraphKey>(new PacketTelegraphKey.Handler()) {},
-                PacketTelegraphKey.class,
-                id++);
+            new DeferredServerHandler<PacketTelegraphKey>(new PacketTelegraphKey.Handler()) {},
+            PacketTelegraphKey.class,
+            id++);
         server(
-                new DeferredServerHandler<PacketRttyControl>(new PacketRttyControl.Handler()) {},
-                PacketRttyControl.class,
-                id++);
+            new DeferredServerHandler<PacketRttyControl>(new PacketRttyControl.Handler()) {},
+            PacketRttyControl.class,
+            id++);
 
         CHANNEL.registerMessage(PacketRttyData.Handler.class, PacketRttyData.class, id++, Side.CLIENT);
 
         server(
-                new DeferredServerHandler<PacketDtmfControl>(new PacketDtmfControl.Handler()) {},
-                PacketDtmfControl.class,
-                id++);
+            new DeferredServerHandler<PacketDtmfControl>(new PacketDtmfControl.Handler()) {},
+            PacketDtmfControl.class,
+            id++);
 
         CHANNEL.registerMessage(PacketDtmfData.Handler.class, PacketDtmfData.class, id++, Side.CLIENT);
 
         server(
-                new DeferredServerHandler<PacketSstvControl>(new PacketSstvControl.Handler()) {},
-                PacketSstvControl.class,
-                id++);
+            new DeferredServerHandler<PacketSstvControl>(new PacketSstvControl.Handler()) {},
+            PacketSstvControl.class,
+            id++);
 
         CHANNEL.registerMessage(PacketSstvLine.Handler.class, PacketSstvLine.class, id++, Side.CLIENT);
         CHANNEL.registerMessage(PacketSstvStatus.Handler.class, PacketSstvStatus.class, id++, Side.CLIENT);
@@ -115,9 +115,9 @@ public final class NetworkHandler {
         // Radio gear screen open request. Routed through the server so the
         // gear container exists server side and slot clicks are accepted.
         server(
-                new DeferredServerHandler<PacketOpenRadioGear>(new PacketOpenRadioGear.Handler()) {},
-                PacketOpenRadioGear.class,
-                id++);
+            new DeferredServerHandler<PacketOpenRadioGear>(new PacketOpenRadioGear.Handler()) {},
+            PacketOpenRadioGear.class,
+            id++);
 
         HertzianDynamics.LOGGER.info("Network channel '{}' registered with {} packet types", HertzianRefs.MODID, id);
     }
