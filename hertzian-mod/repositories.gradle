@@ -1,0 +1,9 @@
+// Project-specific repositories hook. The GTNH convention plugin
+// already includes mavenCentral, the GTNH Nexus, the Forge maven,
+// and a few others; this file is the official extension point for
+// any extra repos.
+//
+// Do not delete: gtnhconvention loads this file with
+// rootProject.apply if it exists, and the absence is treated as
+// "use defaults", but keeping the file in version control marks
+// the explicit decision.

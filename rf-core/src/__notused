@@ -1,0 +1,321 @@
+//! Compute backend selection.
+//!
+//! Each accelerated workload has a CPU implementation that is always
+//! present and a GPU implementation that is optional. `ComputeContext`
+//! owns the optional GPU pools, a per-workload `ComputePolicy`, and
+//! per-workload dispatch counters. It dispatches each call to one backend
+//! with a CPU fallback when the GPU is absent, disabled, or rejects the
+//! request.
+//!
+//! Workloads are identified by `ComputeWorkload`. The configurator on the
+//! Java side sets the policy and tunes the Auto threshold per workload
+//! through the FFI, and reads back the counters for diagnostics. Selecting
+//! a backend never changes the numerical result: the CPU path is the
+//! reference and the GPU path matches it to f32 rounding. The policy is
+//! therefore safe to expose to a server operator; it only trades CPU time
+//! for GPU time, never accuracy.
+//!
+//! GPU self-test: when the GPU path is built it is validated once against
+//! the CPU reference on a known signal. If the GPU result diverges beyond
+//! a relative tolerance the GPU path is dropped and the context runs the
+//! workload on the CPU. This guards against broken drivers that report a
+//! working device but compute wrong results, and it warms the pipeline so
+//! the first real dispatch is not the one that pays the compile cost.
+//!
+
+use ash::vk;
+
+use crate::dsp::zoom_dft::{bin_sums_cpu, finalize_db, hann_window};
+use crate::dsp::zoom_dft_gpu::GpuZoomDft;
+use crate::types::iq::Iq;
+use crate::vulkan::VulkanDevice;
+
+/// Number of distinct accelerated workloads. Indexes the policy and stat
+/// arrays in `ComputeContext`.
+pub const WORKLOAD_COUNT: usize = 1;
+
+/// Identifier of an accelerated workload. The discriminant is the FFI
+/// contract; never reorder, only append.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ComputeWorkload {
+    /// Zoom DFT for the spectrum analyzer.
+    ZoomDft = 0,
+}
+
+impl ComputeWorkload {
+    /// Reverse mapping from the FFI discriminant.
+    pub fn from_u32(v: u32) -> Option<Self> {
+        match v {
+            0 => Some(Self::ZoomDft),
+            _ => None,
+        }
+    }
+
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// Which backend ran a given call. Returned for diagnostics; the
+/// numerical result is backend independent.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ComputeBackend {
+    /// Ran on the CPU reference path.
+    Cpu,
+    /// Ran on the Vulkan compute path.
+    Gpu,
+}
+
+/// Per-workload backend selection policy.
+#[derive(Copy, Clone, Debug)]
+pub enum ComputePolicy {
+    /// Always use the CPU path.
+    ForceCpu,
+    /// Use the GPU path when available, else fall back to CPU.
+    ForceGpu,
+    /// Use the GPU path when available and the work estimate is at least
+    /// `min_work`, else CPU. The work estimate for the zoom DFT is the
+    /// product of sample count and bin count, the number of complex
+    /// multiply accumulate operations the call performs.
+    Auto { min_work: u64 },
+}
+
+impl Default for ComputePolicy {
+    fn default() -> Self {
+        // The analyzer's smallest scan is 512 samples by 192 bins, about
+        // 98k work units, comfortably above this threshold. Below the
+        // threshold the call is cheaper on the CPU than the GPU submission
+        // and fence wait.
+        Self::Auto { min_work: 16_384 }
+    }
+}
+
+impl ComputePolicy {
+    /// Build a policy from the FFI mode code and threshold. Unknown modes
+    /// fall back to Auto.
+    pub fn from_mode(mode: u32, min_work: u64) -> Self {
+        match mode {
+            1 => Self::ForceCpu,
+            2 => Self::ForceGpu,
+            _ => Self::Auto { min_work },
+        }
+    }
+}
+
+/// Per-workload dispatch counters, exported across the FFI for diagnostics.
+/// Layout matches hd_compute_stats_t in rf_core.h.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default)]
+pub struct ComputeStats {
+    /// Number of calls served by the CPU path.
+    pub cpu_calls: u64,
+    /// Number of calls served by the GPU path.
+    pub gpu_calls: u64,
+    /// Number of calls where the GPU was attempted but rejected the
+    /// request and the CPU path ran instead. These are also counted in
+    /// `cpu_calls`.
+    pub fallback_calls: u64,
+    /// Backend of the most recent call: 0 cpu, 1 gpu.
+    pub last_backend: u32,
+    /// 1 when a GPU path exists for this workload, else 0.
+    pub gpu_available: u32,
+}
+
+const _: () = {
+    assert!(core::mem::size_of::<ComputeStats>() == 32);
+    assert!(core::mem::align_of::<ComputeStats>() == 8);
+};
+
+/// Largest input sample count the GPU zoom DFT buffer is sized for. The
+/// analyzer integrates up to 2048 samples per scan.
+pub const ZOOM_MAX_N: usize = 2048;
+
+/// Largest bin count the GPU zoom DFT buffer is sized for. The analyzer
+/// uses 192 bins; the headroom covers a future higher resolution mode
+/// without a buffer resize.
+pub const ZOOM_MAX_BINS: usize = 256;
+
+/// Relative error gate for the GPU self-test. A correct f32 GPU recurrence
+/// matches the CPU reference to well under 1e-3; a broken driver is far
+/// off. The 1e-2 gate accepts the former and rejects the latter.
+const SELF_TEST_REL_TOL: f32 = 1e-2;
+
+/// Owns the optional GPU pools, the workload policies, and the counters.
+pub struct ComputeContext {
+    policies: [ComputePolicy; WORKLOAD_COUNT],
+    stats: [ComputeStats; WORKLOAD_COUNT],
+    gpu_zoom: Option<GpuZoomDft>,
+    windowed_scratch: Vec<Iq>,
+    sums_scratch: Vec<Iq>,
+}
+
+impl ComputeContext {
+    /// Build the context. When `enable_gpu` is false, when the GPU
+    /// pipeline fails to initialise, or when the GPU self-test diverges
+    /// from the CPU reference, the GPU path is left absent and every
+    /// workload runs on the CPU. None of these is fatal.
+    pub fn new(
+        enable_gpu: bool,
+        device: &VulkanDevice,
+        pipeline_cache: vk::PipelineCache,
+        descriptor_pool: vk::DescriptorPool,
+    ) -> Self {
+        let gpu_zoom = if enable_gpu {
+            match GpuZoomDft::new(device, pipeline_cache, descriptor_pool, ZOOM_MAX_N, ZOOM_MAX_BINS)
+            {
+                Ok(mut g) => match Self::validate_gpu_zoom(&mut g) {
+                    Ok(()) => Some(g),
+                    Err(msg) => {
+                        eprintln!("[rf-core] GPU zoom DFT self-test failed ({msg}); using CPU");
+                        None
+                    }
+                },
+                Err(e) => {
+                    eprintln!("[rf-core] GPU zoom DFT unavailable, using CPU: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let mut stats = [ComputeStats::default(); WORKLOAD_COUNT];
+        stats[ComputeWorkload::ZoomDft.index()].gpu_available =
+            if gpu_zoom.is_some() { 1 } else { 0 };
+        Self {
+            policies: [ComputePolicy::default(); WORKLOAD_COUNT],
+            stats,
+            gpu_zoom,
+            windowed_scratch: Vec::new(),
+            sums_scratch: Vec::new(),
+        }
+    }
+
+    /// Run the GPU zoom DFT on a known signal and compare it to the CPU
+    /// reference. Returns Err with a short reason on divergence. Also
+    /// serves as a one-shot warm-up of the pipeline.
+    fn validate_gpu_zoom(gpu: &mut GpuZoomDft) -> core::result::Result<(), String> {
+        const N: usize = 512;
+        const BINS: usize = 192;
+        const FS: f32 = 48_000.0;
+        const SPAN: f32 = 5_000.0;
+        const TONE_HZ: f32 = 1_000.0;
+
+        let hann = hann_window(N);
+        let mut iq = vec![Iq::ZERO; N];
+        for k in 0..N {
+            let ph = core::f32::consts::TAU * TONE_HZ * k as f32 / FS;
+            iq[k] = Iq::new(ph.cos(), ph.sin());
+        }
+        let mut windowed = vec![Iq::ZERO; N];
+        for k in 0..N {
+            windowed[k] = Iq::new(iq[k].i * hann[k], iq[k].q * hann[k]);
+        }
+
+        let mut cpu = vec![Iq::ZERO; BINS];
+        bin_sums_cpu(&iq, &hann, N, SPAN, FS, BINS, &mut cpu);
+
+        let mut got = vec![Iq::ZERO; BINS];
+        gpu.execute(&windowed, SPAN, FS, BINS, &mut got)
+            .map_err(|e| format!("{e}"))?;
+
+        let mut max_mag = 1e-12_f32;
+        for b in 0..BINS {
+            max_mag = max_mag.max(cpu[b].magnitude());
+        }
+        let mut max_err = 0.0_f32;
+        for b in 0..BINS {
+            let de = ((cpu[b].i - got[b].i).powi(2) + (cpu[b].q - got[b].q).powi(2)).sqrt();
+            max_err = max_err.max(de);
+        }
+        let rel = max_err / max_mag;
+        if rel > SELF_TEST_REL_TOL {
+            return Err(format!("relative error {rel:.3e} exceeds {SELF_TEST_REL_TOL:.0e}"));
+        }
+        Ok(())
+    }
+
+    /// True when the GPU zoom DFT path is present and passed the self-test.
+    pub fn zoom_gpu_available(&self) -> bool {
+        self.gpu_zoom.is_some()
+    }
+
+    /// Set the policy for one workload.
+    pub fn set_policy(&mut self, workload: ComputeWorkload, policy: ComputePolicy) {
+        self.policies[workload.index()] = policy;
+    }
+
+    /// Read the counters for one workload.
+    pub fn stats(&self, workload: ComputeWorkload) -> ComputeStats {
+        self.stats[workload.index()]
+    }
+
+    /// Run the zoom DFT for `iq` (at least `n` complex samples) across the
+    /// given span and write `bins` per-bin magnitudes in dB into `out_db`.
+    /// Returns which backend ran. The result is identical to f32 rounding
+    /// regardless of backend.
+    pub fn zoom_dft(
+        &mut self,
+        iq: &[Iq],
+        n: usize,
+        span_hz: f32,
+        fs_hz: f32,
+        bins: usize,
+        out_db: &mut [f32],
+    ) -> ComputeBackend {
+        if n == 0 || bins == 0 || iq.len() < n || out_db.len() < bins {
+            return ComputeBackend::Cpu;
+        }
+
+        let idx = ComputeWorkload::ZoomDft.index();
+        let hann = hann_window(n);
+        let work = (n as u64) * (bins as u64);
+
+        let want_gpu = match self.policies[idx] {
+            ComputePolicy::ForceCpu => false,
+            ComputePolicy::ForceGpu => self.gpu_zoom.is_some(),
+            ComputePolicy::Auto { min_work } => self.gpu_zoom.is_some() && work >= min_work,
+        };
+
+        if self.sums_scratch.len() < bins {
+            self.sums_scratch.resize(bins, Iq::ZERO);
+        }
+
+        let mut ran_gpu = false;
+
+        if want_gpu {
+            if self.windowed_scratch.len() < n {
+                self.windowed_scratch.resize(n, Iq::ZERO);
+            }
+            for k in 0..n {
+                self.windowed_scratch[k] = Iq::new(iq[k].i * hann[k], iq[k].q * hann[k]);
+            }
+            let gpu = self.gpu_zoom.as_mut().expect("checked above");
+            match gpu.execute(
+                &self.windowed_scratch[..n],
+                span_hz,
+                fs_hz,
+                bins,
+                &mut self.sums_scratch[..bins],
+            ) {
+                Ok(()) => ran_gpu = true,
+                Err(_) => self.stats[idx].fallback_calls += 1,
+            }
+        }
+
+        if !ran_gpu {
+            bin_sums_cpu(iq, &hann, n, span_hz, fs_hz, bins, &mut self.sums_scratch[..bins]);
+        }
+
+        finalize_db(&self.sums_scratch[..bins], n, &hann, span_hz, bins, out_db);
+
+        if ran_gpu {
+            self.stats[idx].gpu_calls += 1;
+            self.stats[idx].last_backend = 1;
+            ComputeBackend::Gpu
+        } else {
+            self.stats[idx].cpu_calls += 1;
+            self.stats[idx].last_backend = 0;
+            ComputeBackend::Cpu
+        }
+    }
+}

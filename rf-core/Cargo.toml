@@ -1,0 +1,27 @@
+[package]
+name = "rf-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+description = "RF propagation and DSP core for the Hertzian Dynamics Minecraft mod"
+license = "MIT OR Apache-2.0"
+publish = false
+build = "build.rs"
+
+[lib]
+name = "rf_core"
+crate-type = ["rlib"]
+
+[dependencies]
+ash = { version = "0.38", default-features = false, features = ["loaded", "debug", "std"] }
+
+[features]
+default = []
+validation = []
+gpu_tests = []
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = 1

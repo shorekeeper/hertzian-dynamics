@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "io.hertzian.dynamics.mixin",
+  "refmap": "mixins.hertzian.refmap.json",
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinSourceLWJGLOpenAL"
+  ],
+  "client": []
+}

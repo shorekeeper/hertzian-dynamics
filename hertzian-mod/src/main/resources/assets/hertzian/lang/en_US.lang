@@ -1,0 +1,45 @@
+# Block names.
+tile.hertzian.radio_transmitter.name=Radio Transmitter
+tile.hertzian.radio_receiver.name=Radio Receiver
+tile.hertzian.antenna.name=Antenna Section
+tile.hertzian.jammer.name=Wideband Jammer
+tile.hertzian.microphone.name=Microphone
+tile.hertzian.test_tone.name=Test Tone Generator
+tile.hertzian.spectrum_analyzer.name=Spectrum Analyzer
+tile.hertzian.relay.name=Signal Relay
+tile.hertzian.teletype.name=Telegraph Receiver
+tile.hertzian.telegraph_key.name=Telegraph Key
+tile.hertzian.rtty_terminal.name=RTTY Terminal
+tile.hertzian.dtmf_pad.name=DTMF / Selcall Pad
+tile.hertzian.sstv_station.name=SSTV Station
+
+# Item names.
+item.hertzian.handheld_radio.name=Handheld Radio
+item.hertzian.tuning_knob.name=Tuning Knob
+item.hertzian.frequency_preset.name=Frequency Preset
+item.hertzian.headset.name=Headset
+
+# Handheld radio models.
+item.hertzian.handheld_radio.falcon_ht5.name=Falcon HT-5
+item.hertzian.handheld_radio.chirp_frs2.name=Chirp FRS-2
+item.hertzian.handheld_radio.pocket_cb.name=PocketCB HT-27
+item.hertzian.handheld_radio.mariner_vhf.name=Mariner VHF-H1
+item.hertzian.handheld_radio.spectre_tr9.name=Spectre TR-9
+item.hertzian.handheld_radio.nomad_mb44.name=Nomad MB-44
+item.hertzian.handheld_radio.longshot_hf.name=Longshot HF-Manpack
+item.hertzian.handheld_radio.cipher_t1.name=Cipher T-1
+
+# Tooltips.
+tooltip.hertzian.tuned_hz=Tuned: %s Hz
+tooltip.hertzian.tx_power=Power: %s W
+tooltip.hertzian.modulation=Modulation: %s
+tooltip.hertzian.bandwidth=Bandwidth: %s Hz
+
+# Containers.
+container.hertzian.radio_gear=Radio Gear
+
+# Key bindings.
+key.categories.hertzian=Hertzian Dynamics
+key.hertzian.ptt=Push To Talk
+key.hertzian.micConfig=Microphone Settings
+key.hertzian.radioGear=Open Radio Gear

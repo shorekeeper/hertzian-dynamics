@@ -1,0 +1,37 @@
+[package]
+name = "rf-jni"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "C ABI surface for rf-core consumed by the Hertzian Dynamics Java mod through FFM"
+build = "build.rs"
+
+[lib]
+# Default name is derived from the package name (rf-jni -> rf_jni).
+# The cdylib will land as librf_jni.so / librf_jni.dylib / rf_jni.dll,
+# the rlib as librf_jni.rlib for cargo test consumption.
+#
+# A custom name like "rf_core" was tried initially to produce a
+# librf_core.so binary, but that collides with the rf-core path
+# dependency at cargo's rlib resolution stage and breaks test
+# compilation with E0432 / E0464 / E0282. Keeping the natural
+# package-derived name avoids the collision entirely and the
+# Java-side NativeLoader points at the new file name instead.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rf-core = { path = "../rf-core" }
+
+[features]
+default = []
+# Forwarded to rf-core for gpu-required integration tests.
+gpu_tests = ["rf-core/gpu_tests"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = 1
+panic = "unwind"

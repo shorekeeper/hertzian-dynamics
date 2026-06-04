@@ -1,0 +1,113 @@
+// Cooley-Tukey radix-2 decimation-in-time FFT.
+//
+// One workgroup performs one full FFT of N complex samples. N must be
+// a power of two in [WG_SIZE * 2, MAX_N]. The shader uses shared
+// memory of size 2 * N floats (vec2 per element). Each invocation
+// handles N / (2 * WG_SIZE) butterflies per stage.
+//
+// The algorithm matches the CPU reference in src/dsp/fft.rs one to
+// one so we can cross-validate element by element.
+//
+// Inputs and outputs share one storage buffer. The buffer holds
+// data[N] of vec2 (i, q). The shader reads input, runs the FFT in
+// shared memory with a bit-reverse permutation on load, and writes
+// the result back over the same buffer.
+//
+// Push constants:
+//   n         - FFT length, power of two.
+//   log_n     - log2(N), needed for bitfieldReverse alignment.
+//   dir_sign  - twiddle sign: -1.0 for forward, +1.0 for inverse.
+//   inv_scale - post-pass scaling: 1.0 forward, 1/N inverse.
+
+#version 450
+#extension GL_EXT_control_flow_attributes : require
+
+// Compile time configuration. MAX_N caps the shared memory footprint.
+// 4096 complex samples = 32 KB, the lowest common denominator for
+// guaranteed maxComputeSharedMemorySize across mainstream GPUs.
+#define WG_SIZE   256u
+#define MAX_N     4096u
+
+layout(local_size_x = WG_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, std430) buffer Io {
+    vec2 data[];
+};
+
+layout(push_constant) uniform Push {
+    uint  n;
+    uint  log_n;
+    float dir_sign;
+    float inv_scale;
+} pc;
+
+shared vec2 sm[MAX_N];
+
+// Complex multiply.
+vec2 cmul(vec2 a, vec2 b) {
+    return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+// Reverse the low pc.log_n bits of x within a uint.
+uint rev_bits(uint x) {
+    // bitfieldReverse reverses all 32 bits; align by shifting down.
+    return bitfieldReverse(x) >> (32u - pc.log_n);
+}
+
+void main() {
+    uint tid = gl_LocalInvocationID.x;
+    uint N = pc.n;
+    uint half_n = N >> 1u;
+    uint per_thread = max(1u, half_n / WG_SIZE);
+
+    // Bit reversed load. Each invocation pulls per_thread pairs.
+    [[unroll]] for (uint p = 0u; p < per_thread; ++p) {
+        uint k1 = tid + p * WG_SIZE;
+        uint k2 = k1 + half_n;
+        if (k1 < N) {
+            sm[rev_bits(k1)] = data[k1];
+        }
+        if (k2 < N) {
+            sm[rev_bits(k2)] = data[k2];
+        }
+    }
+    barrier();
+
+    // Stage loop: size = 2, 4, 8, ..., N.
+    for (uint stage = 0u; stage < pc.log_n; ++stage) {
+        uint size = 2u << stage;
+        uint half_size = size >> 1u;
+
+        for (uint p = 0u; p < per_thread; ++p) {
+            uint butterfly = tid + p * WG_SIZE;
+            if (butterfly >= half_n) {
+                break;
+            }
+            uint block = butterfly / half_size;
+            uint inblk = butterfly - block * half_size;
+            uint i_top = block * size + inblk;
+            uint i_bot = i_top + half_size;
+
+            float angle = pc.dir_sign * 6.28318530717958647692 * float(inblk) / float(size);
+            vec2 w = vec2(cos(angle), sin(angle));
+
+            vec2 u = sm[i_top];
+            vec2 t = cmul(sm[i_bot], w);
+            sm[i_top] = u + t;
+            sm[i_bot] = u - t;
+        }
+        barrier();
+    }
+
+    // Store back with optional 1/N scaling for the inverse path.
+    [[unroll]] for (uint p = 0u; p < per_thread; ++p) {
+        uint k1 = tid + p * WG_SIZE;
+        uint k2 = k1 + half_n;
+        if (k1 < N) {
+            data[k1] = sm[k1] * pc.inv_scale;
+        }
+        if (k2 < N) {
+            data[k2] = sm[k2] * pc.inv_scale;
+        }
+    }
+}

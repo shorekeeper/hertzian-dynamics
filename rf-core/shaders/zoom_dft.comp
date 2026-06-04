@@ -1,0 +1,74 @@
+// Zoom DFT: project BINS frequency bins across a span centered on the
+// receiver baseband (DC). Each invocation computes one bin as a complex
+// sum over the windowed input samples, using a per-sample phase
+// recurrence. The CPU reference in src/dsp/zoom_dft.rs runs the identical
+// arithmetic in the same accumulation order so the two backends agree to
+// f32 rounding.
+//
+// Input samples are already Hann-windowed on the host. The host applies
+// the PSD normalisation and the dB conversion after readback, so this
+// shader only produces the raw complex bin sums.
+//
+// Layout:
+//   binding 0: input windowed complex samples (vec2), n of them.
+//   binding 1: output complex bin sums (vec2), bins of them.
+//
+// Push constants:
+//   n     sample count.
+//   bins  number of output bins.
+//   fs    sample rate, Hz.
+//   span  total analysis span, Hz. Bins are laid out at
+//         offset(b) = -span/2 + (b + 0.5) * span/bins.
+
+#version 450
+
+#define WG_SIZE 64u
+
+layout(local_size_x = WG_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, std430) readonly buffer InBuf {
+    vec2 samples[];
+};
+
+layout(set = 0, binding = 1, std430) writeonly buffer OutBuf {
+    vec2 bins[];
+};
+
+layout(push_constant) uniform Push {
+    uint  n;
+    uint  bins;
+    float fs;
+    float span;
+} pc;
+
+void main() {
+    uint b = gl_GlobalInvocationID.x;
+    if (b >= pc.bins) {
+        return;
+    }
+
+    float half_span = pc.span * 0.5;
+    float bin_width = pc.span / float(pc.bins);
+    float offset_hz = -half_span + (float(b) + 0.5) * bin_width;
+    float phase_inc = -6.28318530717958647692 * offset_hz / pc.fs;
+
+    float cos_inc = cos(phase_inc);
+    float sin_inc = sin(phase_inc);
+    float c = 1.0;
+    float s = 0.0;
+
+    float sum_i = 0.0;
+    float sum_q = 0.0;
+
+    for (uint k = 0u; k < pc.n; ++k) {
+        vec2 x = samples[k];
+        sum_i += x.x * c - x.y * s;
+        sum_q += x.x * s + x.y * c;
+        float nc = c * cos_inc - s * sin_inc;
+        float ns = c * sin_inc + s * cos_inc;
+        c = nc;
+        s = ns;
+    }
+
+    bins[b] = vec2(sum_i, sum_q);
+}

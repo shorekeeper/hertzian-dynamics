@@ -1,0 +1,13 @@
+[
+  {
+    "modid": "${modId}",
+    "name": "${modName}",
+    "version": "${modVersion}",
+    "mcversion": "${minecraftVersion}",
+    "description": "A physically grounded radio simulation: real frequencies, modulation, FM/AM, signal interception, jamming, fading, ionospheric skywave.",
+    "authors": ["Hertzian"],
+    "credits": "Built on rf-core (Rust) and lwjgl3ify (GTNewHorizons).",
+    "requiredMods": ["Forge", "lwjgl3ify"],
+    "useDependencyInformation": true
+  }
+]

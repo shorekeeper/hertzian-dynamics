@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------
+# Rust workspace (rf-core, rf-jni)
+# ---------------------------------------------------------------
+/target/
+**/target/
+
+# Cargo.lock is committed at the workspace root because this is a
+# binary-producing workspace (the cdylib is a shipped artifact).
+# Per-crate lock files are not.
+/rf-core/Cargo.lock
+/rf-jni/Cargo.lock
+
+# Example dumps written by rf-core examples.
+**/hertzian_out/
+
+# ---------------------------------------------------------------
+# Gradle mod (hertzian-mod)
+# ---------------------------------------------------------------
+hertzian-mod/.gradle/
+hertzian-mod/build/
+hertzian-mod/out/
+hertzian-mod/run/
+hertzian-mod/runClient/
+hertzian-mod/runServer/
+hertzian-mod/logs/
+
+# Gradle wrapper jar is committed; everything else under the wrapper
+# dir is local cache.
+hertzian-mod/.gradle-cache/
+
+# Decompiled and patched Minecraft sources produced by RFG.
+hertzian-mod/.minecraft/
+hertzian-mod/**/decompiled/
+
+# ---------------------------------------------------------------
+# Native libraries copied into mod resources at build time
+# ---------------------------------------------------------------
+# build.gradle.kts copies the cdylib here from the cargo target dir.
+# These are build outputs, not source.
+hertzian-mod/src/main/resources/native/
+
+# Extracted native temp files written by NativeLoader at runtime.
+rf_jni_*
+
+# ---------------------------------------------------------------
+# Compiled SPIR-V (emitted by build.rs into OUT_DIR, which is under
+# target/, already ignored). Kept here for any stray local copies.
+# ---------------------------------------------------------------
+*.spv
+
+# ---------------------------------------------------------------
+# IDE and editor
+# ---------------------------------------------------------------
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+.fleet/
+.settings/
+.classpath
+.project
+*.swp
+*~
+
+# ---------------------------------------------------------------
+# OS
+# ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+code.ps1
+*.txt
