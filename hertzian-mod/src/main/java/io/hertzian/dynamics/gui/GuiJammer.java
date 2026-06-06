@@ -28,7 +28,7 @@ public final class GuiJammer extends HertzianGui {
         this.tileY = tile.yCoord;
         this.tileZ = tile.zCoord;
         this.tileDim = tile.getWorldObj().provider.dimensionId;
-        this.panelWidth = 240;
+        this.panelWidth = 320;
         this.panelHeight = 200;
     }
 
@@ -81,7 +81,9 @@ public final class GuiJammer extends HertzianGui {
             button.displayString = "Profile: " + tile.jamProfileLabel();
             sendUpdate();
         } else if (button instanceof Buttons.StepButton) {
-            tile.setCarrierHz(tile.carrierHz() + ((Buttons.StepButton) button).deltaHz);
+            double delta = ((Buttons.StepButton) button).deltaHz;
+            if (isShiftKeyDown()) delta *= 10.0;
+            tile.setCarrierHz(tile.carrierHz() + delta);
             sendUpdate();
         }
     }
