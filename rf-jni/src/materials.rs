@@ -35,13 +35,19 @@ pub extern "C" fn hd_materials_destroy(handle_ptr: *mut c_void) -> i32 {
     })
 }
 
+/// Register or overwrite a material slot from its electrical properties.
+/// The four power law coefficients are epsilon_r = eps_a * f_GHz^eps_b and
+/// sigma = sigma_c * f_GHz^sigma_d in siemens per metre; pivot_frequency_hz
+/// is the lower clamp on the property evaluation frequency. See
+/// rf_core::propagation::material for the model.
 #[no_mangle]
 pub extern "C" fn hd_materials_register(
     handle_ptr: *mut c_void,
     material_id: u16,
-    atten_db_per_m_at_ref: f32,
-    reference_frequency_hz: f32,
-    scaling_exponent: f32,
+    eps_a: f32,
+    eps_b: f32,
+    sigma_c: f32,
+    sigma_d: f32,
     pivot_frequency_hz: f32,
 ) -> i32 {
     safe_call(|| {
@@ -50,24 +56,26 @@ pub extern "C" fn hd_materials_register(
             Some(t) => t,
             None => return HD_ERR_NULL,
         };
-        if !atten_db_per_m_at_ref.is_finite()
-            || !reference_frequency_hz.is_finite()
-            || !scaling_exponent.is_finite()
+        if !eps_a.is_finite()
+            || !eps_b.is_finite()
+            || !sigma_c.is_finite()
+            || !sigma_d.is_finite()
             || !pivot_frequency_hz.is_finite()
         {
             return HD_ERR_INVALID_ARG;
         }
-        if reference_frequency_hz <= 0.0 || pivot_frequency_hz <= 0.0 {
+        if eps_a <= 0.0 || sigma_c < 0.0 || pivot_frequency_hz <= 0.0 {
             return HD_ERR_INVALID_ARG;
         }
-        // Slot name is informational; the Java side passes a
-        // pre-registered numeric id and does not need the string.
+        // Slot name is informational; the Java side passes a pre-registered
+        // numeric id and does not need the string.
         tab.register(Material {
             id: MaterialId(material_id),
             name: "user",
-            atten_db_per_m_at_ref,
-            reference_frequency_hz,
-            scaling_exponent,
+            eps_a,
+            eps_b,
+            sigma_c,
+            sigma_d,
             pivot_frequency_hz,
         });
         HD_OK

@@ -195,15 +195,19 @@ int32_t hd_grid_create(float voxel_size_m, hd_grid_t* out_handle);
 int32_t hd_grid_destroy(hd_grid_t handle);
 int32_t hd_grid_set_voxel(hd_grid_t handle, int32_t x, int32_t y, int32_t z, uint16_t material_id);
 
-/* Material table. */
+/* Material table. Materials are described by their electrical
+ * properties: relative permittivity eps_r = eps_a * f_GHz^eps_b and
+ * conductivity sigma = sigma_c * f_GHz^sigma_d (S/m). pivot_frequency_hz
+ * is the lower clamp on the property evaluation frequency. */
 int32_t hd_materials_create_defaults(hd_materials_t* out_handle);
 int32_t hd_materials_destroy(hd_materials_t handle);
 int32_t hd_materials_register(
     hd_materials_t handle,
     uint16_t material_id,
-    float atten_db_per_m_at_ref,
-    float reference_frequency_hz,
-    float scaling_exponent,
+    float eps_a,
+    float eps_b,
+    float sigma_c,
+    float sigma_d,
     float pivot_frequency_hz
 );
 

@@ -1,19 +1,19 @@
 // Batched voxel absorption raycast. One invocation per ray query.
 //
 // Replicates the CPU reference (propagation::voxel::traverse plus
-// raycast_absorption_db, and Material::attenuation_db_per_m) in f32 so the
-// two backends match within the self-test tolerance. The DDA geometry is
-// f32 on both sides and matches to rounding; the only model difference is
-// the material power law, where pow() and Rust powf() may differ in the
-// last bits. At the material reference frequency the power law is bypassed
-// and the two are exact.
+// raycast_absorption_db, and Material::attenuation_db_per_m) in f32 so
+// the two backends match within the self-test tolerance. The DDA geometry
+// is f32 on both sides and matches to rounding. Both backends run the
+// full plane wave attenuation formula derived from the complex
+// permittivity, so the only difference is f32 versus f64 rounding in the
+// pow() and sqrt() calls, well inside the self-test gate.
 //
 // Bindings:
 //   0 queries  8 floats per ray: [ox,oy,oz,_, tx,ty,tz,_]
 //   1 results  one float per ray: absorption dB, capped at budget
 //   2 dir      ivec4 per directory slot: (cx,cy,cz, poolIndex); w<0 empty
 //   3 pool     one uint per voxel (material id): poolIndex*4096 + idx
-//   4 mat      4 floats per material id: [atten_ref, ref_freq, exp, pivot]
+//   4 mat      5 floats per material id: [eps_a, eps_b, sigma_c, sigma_d, pivot_hz]
 //
 // The directory is an open-addressing hash table built on the host with
 // the identical hash and probe sequence used here.
@@ -21,6 +21,12 @@
 #version 450
 
 #define WG_SIZE 64u
+
+// Physical constants, matching propagation::material.
+#define TWO_PI    6.28318530717958647692
+#define EPS0      8.8541878128e-12
+#define C_LIGHT   299792458.0
+#define NEPER_DB  8.685889638065037
 
 layout(local_size_x = WG_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -79,20 +85,36 @@ uint material_at(int x, int y, int z) {
     return 0u;
 }
 
+// Per metre attenuation in dB from the complex permittivity, matching
+// Material::attenuation_db_per_m. The power law properties are evaluated
+// at the pivot clamped frequency; the loss tangent divisor and the
+// wavenumber use the true operating frequency.
 float atten_per_m(uint id) {
     if (id == 0u || id >= pc.material_count) {
         return 0.0;
     }
-    uint b = id * 4u;
-    float atten_ref = mat[b + 0u];
-    float ref_freq = mat[b + 1u];
-    float scaling = mat[b + 2u];
-    float pivot = mat[b + 3u];
-    float f_eff = max(pc.freq, pivot);
-    if (f_eff <= ref_freq) {
-        return atten_ref;
+    uint b = id * 5u;
+    float eps_a = mat[b + 0u];
+    float eps_b = mat[b + 1u];
+    float sig_c = mat[b + 2u];
+    float sig_d = mat[b + 3u];
+    float pivot = mat[b + 4u];
+
+    float f_eval = max(pc.freq, pivot);
+    float f = max(pc.freq, 1.0);
+    float fg = f_eval * 1.0e-9;
+
+    float eps_r = eps_a * pow(fg, eps_b);
+    float sigma = sig_c * pow(fg, sig_d);
+    float eps_im = sigma / (TWO_PI * f * EPS0);
+
+    if (eps_im <= 0.0 && eps_r <= 1.0) {
+        return 0.0;
     }
-    return atten_ref * pow(f_eff / ref_freq, scaling);
+    float mag = sqrt(eps_r * eps_r + eps_im * eps_im);
+    float q_term = sqrt(max(0.5 * (mag - eps_r), 0.0));
+    float alpha = (TWO_PI * f / C_LIGHT) * q_term;
+    return float(NEPER_DB) * alpha;
 }
 
 void main() {

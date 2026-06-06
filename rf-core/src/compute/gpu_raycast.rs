@@ -29,7 +29,7 @@ pub const GPU_RAYCAST_MAX_QUERIES: usize = 8192;
 pub const GPU_RAYCAST_MAX_MATERIALS: usize = 1024;
 
 const QUERY_STRIDE: usize = 8;
-const MATERIAL_STRIDE: usize = 4;
+const MATERIAL_STRIDE: usize = 5;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -206,15 +206,17 @@ impl GpuRaycast {
         // Stage queries.
         copy_f32_in(self.queries.as_slice_mut(), &queries[..count * QUERY_STRIDE]);
 
-        // Stage materials.
+        // Stage materials. Five floats per id mirror the GPU layout:
+        // eps_a, eps_b, sigma_c, sigma_d, pivot_hz.
         {
             let dst = f32_view_mut(self.materials.as_slice_mut(), mat_count * MATERIAL_STRIDE);
             for (i, m) in materials.entries().iter().take(mat_count).enumerate() {
                 let b = i * MATERIAL_STRIDE;
-                dst[b] = m.atten_db_per_m_at_ref;
-                dst[b + 1] = m.reference_frequency_hz;
-                dst[b + 2] = m.scaling_exponent;
-                dst[b + 3] = m.pivot_frequency_hz;
+                dst[b] = m.eps_a;
+                dst[b + 1] = m.eps_b;
+                dst[b + 2] = m.sigma_c;
+                dst[b + 3] = m.sigma_d;
+                dst[b + 4] = m.pivot_frequency_hz;
             }
         }
 

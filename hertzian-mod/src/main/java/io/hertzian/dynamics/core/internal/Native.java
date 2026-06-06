@@ -172,16 +172,17 @@ public final class Native {
             "hd_materials_destroy",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         HD_MATERIALS_REGISTER = bind(
-            linker,
-            "hd_materials_register",
-            FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_SHORT,
-                ValueLayout.JAVA_FLOAT,
-                ValueLayout.JAVA_FLOAT,
-                ValueLayout.JAVA_FLOAT,
-                ValueLayout.JAVA_FLOAT));
+                linker,
+                "hd_materials_register",
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_SHORT,
+                        ValueLayout.JAVA_FLOAT,
+                        ValueLayout.JAVA_FLOAT,
+                        ValueLayout.JAVA_FLOAT,
+                        ValueLayout.JAVA_FLOAT,
+                        ValueLayout.JAVA_FLOAT));
 
         HD_IONO_CREATE = bind(
             linker,

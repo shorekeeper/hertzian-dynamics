@@ -1,226 +1,318 @@
-//! Material database for voxel absorption.
+//! Material database for voxel propagation.
 //!
-//! Each material has a base attenuation in dB per metre at a
-//! reference frequency. Real materials have a complex dielectric
-//! constant that gives a frequency dependent loss; for the engine
-//! we use a single multiplier exponent that captures the trend
-//! without a full dispersion table. The default scaling is
-//! linear in frequency above 30 MHz and flat below, which is a
-//! reasonable shortcut for the broad strokes the simulation needs.
+//! Each material is described by frequency dependent electrical
+//! properties following the ITU-R P.2040 power law form: the real part
+//! of the relative permittivity is
+//!
+//!     epsilon_r(f) = a * f^b
+//!
+//! and the conductivity, in siemens per metre, is
+//!
+//!     sigma(f) = c * f^d
+//!
+//! with f in gigahertz. The four coefficients (a, b, c, d) carry the
+//! whole material model; setting b or d to zero pins the corresponding
+//! quantity to a constant.
+//!
+//! Complex relative permittivity
+//! -----------------------------
+//!
+//! A lossy dielectric is summarised by the complex relative permittivity
+//!
+//!     eta = epsilon_r - j * epsilon_r''
+//!     epsilon_r'' = sigma / (omega * epsilon_0)
+//!
+//! where omega = 2*pi*f and epsilon_0 is the vacuum permittivity. With f
+//! in hertz this is epsilon_r'' = sigma / (2*pi*f*epsilon_0). The same
+//! eta drives both the per metre absorption used by the voxel raycast and
+//! the Fresnel reflection coefficients the reflection model consumes, so
+//! storing (a, b, c, d) here keeps the two consistent by construction.
+//!
+//! Attenuation from the propagation constant
+//! -----------------------------------------
+//!
+//! A plane wave in the medium propagates as exp(-j*k*z) with the complex
+//! wavenumber k = (omega/c)*sqrt(eta) = (omega/c)*(p - j*q). The real part
+//! p sets the phase velocity; the imaginary part q sets the decay. Writing
+//! the square root of a complex number in rectangular form,
+//!
+//!     q = sqrt( ( |eta| - epsilon_r ) / 2 ),   |eta| = sqrt(epsilon_r^2 + epsilon_r''^2)
+//!
+//! the field attenuation constant is
+//!
+//!     alpha = (omega / c) * q          [nepers per metre]
+//!
+//! and the power attenuation rate is alpha converted to decibels,
+//!
+//!     A = (20 / ln 10) * alpha = 8.6859 * alpha   [decibels per metre].
+//!
+//! This is exact for every loss tangent. In the good conductor limit
+//! (sigma >> omega*epsilon_0*epsilon_r) it reduces to the skin effect
+//! alpha ~ sqrt(pi*f*mu*sigma), growing as the square root of frequency.
+//! In the low loss limit (sigma << omega*epsilon_0*epsilon_r) it reduces
+//! to A ~ 1636 * sigma / sqrt(epsilon_r), the well known ITU-R P.2040
+//! specific attenuation approximation, which is a useful sanity check on
+//! the coefficient choices below.
+//!
+//! Coefficient provenance and frequency range
+//! -------------------------------------------
+//!
+//! The functional form is from ITU-R P.2040, whose tabulated material
+//! coefficients are characterised at and above roughly 1 GHz. The mod
+//! operates from the low HF band up into the UHF band, well below that
+//! range, so the coefficients here are chosen to behave sensibly across
+//! HF, VHF and UHF rather than copied verbatim from the table; several
+//! materials are pinned to constant permittivity and conductivity with
+//! standard antenna engineering values where the published power law
+//! would misbehave when extrapolated down. The per metre magnitudes are
+//! gameplay grade engineering figures for 1 m solid voxels, not
+//! laboratory measurements, and most are deliberately more transparent
+//! than a naive intuition expects because real building materials pass
+//! VHF readily (FM radio works indoors). Solid barriers in game come from
+//! metal, water and reflection geometry rather than from dielectric loss.
+//!
+//! Each material carries a pivot frequency that clamps the property
+//! evaluation frequency from below, so the power laws are never evaluated
+//! deep outside their validity where epsilon_r or sigma would run away.
+//! The geometric factors (the omega/c wavenumber term and the
+//! omega*epsilon_0 divisor of epsilon_r'') always use the true operating
+//! frequency; only the (a, b, c, d) evaluation is clamped.
 
-/// Stable identifier of a material in the table. The JNI layer
-/// will hand these back to Java as `int` indices; never reuse a
-/// value across schema versions.
+/// Vacuum permittivity, farads per metre (CODATA).
+const VACUUM_PERMITTIVITY_F_PER_M: f64 = 8.854_187_812_8e-12;
+
+/// Speed of light in vacuum, metres per second.
+const SPEED_OF_LIGHT_M_S: f64 = 299_792_458.0;
+
+/// Conversion from nepers to decibels, 20 / ln(10).
+const NEPER_TO_DB: f64 = 8.685_889_638_065_037;
+
+/// Two pi, in f64.
+const TAU_F64: f64 = std::f64::consts::TAU;
+
+/// Stable identifier of a material in the table. The JNI layer hands
+/// these back to Java as `int` indices; never reuse a value across schema
+/// versions.
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct MaterialId(pub u16);
 
 impl MaterialId {
-    /// The empty voxel. Air does not absorb at the frequencies the
-    /// engine covers, so this is always the zero attenuation entry.
+    /// The empty voxel. Air does not absorb or reflect at the frequencies
+    /// the engine covers, so this is always the lossless entry.
     pub const AIR: Self = Self(0);
 }
 
 /// Static material description.
+///
+/// The four power law coefficients are the whole electromagnetic model;
+/// permittivity, conductivity, complex permittivity and attenuation are
+/// all derived from them. See the module documentation for the formulas.
 #[derive(Copy, Clone, Debug)]
 pub struct Material {
     /// Identifier; equal to the index of this entry in the table.
     pub id: MaterialId,
     /// Stable display name for diagnostics.
     pub name: &'static str,
-    /// Attenuation in dB per metre at `reference_frequency_hz`.
-    pub atten_db_per_m_at_ref: f32,
-    /// Reference frequency at which the attenuation was measured.
-    pub reference_frequency_hz: f32,
-    /// Exponent of the linear scaling above `pivot_frequency_hz`.
-    /// The actual attenuation is
-    ///   atten = base * max(1, f / pivot)^scaling_exponent.
-    /// 1.0 is the conventional dispersion of lossy dielectrics in
-    /// the HF to VHF range; 0.0 disables scaling.
-    pub scaling_exponent: f32,
-    /// Pivot frequency below which the attenuation stays flat.
+    /// Permittivity coefficient a in epsilon_r = a * f_GHz^b.
+    pub eps_a: f32,
+    /// Permittivity exponent b in epsilon_r = a * f_GHz^b.
+    pub eps_b: f32,
+    /// Conductivity coefficient c in sigma = c * f_GHz^d, siemens/metre.
+    pub sigma_c: f32,
+    /// Conductivity exponent d in sigma = c * f_GHz^d.
+    pub sigma_d: f32,
+    /// Lower clamp, in hertz, on the frequency used to evaluate the power
+    /// laws. Guards against unphysical extrapolation below the model's
+    /// validity. The wavenumber and loss tangent divisor still use the
+    /// true operating frequency.
     pub pivot_frequency_hz: f32,
 }
 
 impl Material {
-    /// Attenuation in decibels per metre at an arbitrary frequency.
+    /// Frequency, in hertz, used to evaluate the (a, b, c, d) power laws.
+    /// Clamped from below by the pivot.
+    fn eval_freq_hz(&self, frequency_hz: f64) -> f64 {
+        frequency_hz.max(self.pivot_frequency_hz as f64)
+    }
+
+    /// Real part of the relative permittivity at a frequency.
+    pub fn relative_permittivity(&self, frequency_hz: f64) -> f32 {
+        let f_ghz = self.eval_freq_hz(frequency_hz) / 1.0e9;
+        (self.eps_a as f64 * f_ghz.powf(self.eps_b as f64)) as f32
+    }
+
+    /// Conductivity at a frequency, in siemens per metre.
+    pub fn conductivity(&self, frequency_hz: f64) -> f32 {
+        let f_ghz = self.eval_freq_hz(frequency_hz) / 1.0e9;
+        (self.sigma_c as f64 * f_ghz.powf(self.sigma_d as f64)) as f32
+    }
+
+    /// Complex relative permittivity at a frequency, returned as
+    /// (epsilon_r, epsilon_r''). The imaginary part is the loss term
+    /// sigma / (2*pi*f*epsilon_0) evaluated at the true operating
+    /// frequency; the conductivity feeding it is clamped to the pivot.
+    pub fn complex_permittivity(&self, frequency_hz: f64) -> (f32, f32) {
+        let eps_r = self.relative_permittivity(frequency_hz) as f64;
+        let sigma = self.conductivity(frequency_hz) as f64;
+        let f = frequency_hz.max(1.0);
+        let eps_imag = sigma / (TAU_F64 * f * VACUUM_PERMITTIVITY_F_PER_M);
+        (eps_r as f32, eps_imag as f32)
+    }
+
+    /// Attenuation in decibels per metre at a frequency.
     ///
-    /// The model is the single-slope power law atten = ref *
-    /// (f / ref)^exponent, the standard band approximation also used by
-    /// ITU-R P.2040 for building materials. The exponent encodes the
-    /// dominant loss regime of the material rather than being a free
-    /// fitting knob: a good conductor loses energy through the skin
-    /// effect and scales as the square root of frequency (exponent
-    /// 0.5), a dielectric with a roughly constant loss tangent scales
-    /// about linearly (exponent 1.0), and vegetation sits near the
-    /// square-root end as well. A single slope cannot capture the full
-    /// conductor-to-dielectric transition a material crosses over many
-    /// decades, so the exponent is chosen for the dominant regime over
-    /// the HF-to-VHF band the engine actually uses. The per-metre
-    /// magnitudes are calibrated for 1 m solid voxels and are gameplay
-    /// figures, not laboratory measurements.
-    ///
-    /// Scaling rule, applied in three regions:
-    ///
-    ///
-    /// * `frequency_hz >= reference_frequency_hz`
-    ///     Above the reference the attenuation grows as a power
-    ///     law:
-    ///         atten = ref * (f / ref)^scaling_exponent.
-    ///
-    /// * `pivot_frequency_hz <= frequency_hz < reference_frequency_hz`
-    ///     Between the pivot and the reference the attenuation
-    ///     stays flat at `atten_db_per_m_at_ref`. The simulation
-    ///     does not pretend to know how a material behaves at
-    ///     frequencies it was not characterised for, so the safe
-    ///     default is "no extra penalty".
-    ///
-    ///  * `frequency_hz < pivot_frequency_hz`
-    ///     Below the pivot the frequency is clamped to the pivot
-    ///     and the previous rule applies. The clamp guards against
-    ///     pathological inputs (zero or near zero frequencies) and
-    ///     leaves the value flat at `atten_db_per_m_at_ref`.
+    /// Derived from the imaginary part of the plane wave propagation
+    /// constant; see the module documentation. Air (epsilon_r at or below
+    /// one with zero loss) returns exactly zero. A good conductor produces
+    /// a very large value that the caller's budget then caps, which is the
+    /// correct near total shielding behaviour for a solid metal voxel.
     pub fn attenuation_db_per_m(&self, frequency_hz: f64) -> f32 {
-        let f_eff = (frequency_hz as f32).max(self.pivot_frequency_hz);
-        if f_eff <= self.reference_frequency_hz {
-            return self.atten_db_per_m_at_ref;
+        let (eps_r, eps_imag) = self.complex_permittivity(frequency_hz);
+        let eps_r = eps_r as f64;
+        let eps_imag = eps_imag as f64;
+        if eps_imag <= 0.0 && eps_r <= 1.0 {
+            return 0.0;
         }
-        let ratio = f_eff / self.reference_frequency_hz;
-        self.atten_db_per_m_at_ref * ratio.powf(self.scaling_exponent)
+        let magnitude = (eps_r * eps_r + eps_imag * eps_imag).sqrt();
+        let q = (0.5 * (magnitude - eps_r)).max(0.0).sqrt();
+        let f = frequency_hz.max(1.0);
+        let alpha_np_per_m = (TAU_F64 * f / SPEED_OF_LIGHT_M_S) * q;
+        (NEPER_TO_DB * alpha_np_per_m) as f32
     }
 }
 
-/// Lookup table indexed by MaterialId. Stored as a Vec for cheap
-/// growth at startup, then frozen by the time the solver runs.
+/// Lookup table indexed by MaterialId. Stored as a Vec for cheap growth
+/// at startup, then frozen by the time the solver runs.
 #[derive(Clone, Debug, Default)]
 pub struct MaterialTable {
     entries: Vec<Material>,
 }
 
 impl MaterialTable {
-    /// Empty table. The caller must register AIR before doing any
-    /// useful work; `with_defaults` does this and adds a handful of
-    /// stock materials.
+    /// Empty table. The caller must register AIR before doing any useful
+    /// work; `with_defaults` does this and adds a handful of stock
+    /// materials.
     pub fn new() -> Self {
         Self { entries: Vec::new() }
     }
 
+    /// Build a table with the stock material set. The per material
+    /// comments record the physical reasoning behind each coefficient
+    /// choice; the verification figures quoted are the attenuation at
+    /// 145 MHz, the engine's default VHF test band.
     pub fn with_defaults() -> Self {
         let mut t = Self::new();
-        // Air. Reference values do not matter, attenuation stays 0.
+        // Air. Vacuum: unit permittivity, no conductivity, lossless.
         t.register(Material {
             id: MaterialId(0),
             name: "air",
-            atten_db_per_m_at_ref: 0.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 0.0,
-            pivot_frequency_hz: 100e6,
+            eps_a: 1.0,
+            eps_b: 0.0,
+            sigma_c: 0.0,
+            sigma_d: 0.0,
+            pivot_frequency_hz: 1.0e6,
         });
-        // Stone (dense composite, closer to reinforced concrete than
-        // dry brick because Minecraft voxels are 1 m solid blocks).
-        // Lossy dielectric: over the HF-VHF band a roughly constant loss
-        // tangent gives attenuation close to linear in frequency, so the
-        // exponent stays at 1.0.
+        // Stone. Dense rock and concrete share epsilon_r near 5; the
+        // conductivity grows as the square root of frequency, the skin
+        // effect trend of a weakly conducting mineral. About 2.7 dB/m at
+        // 145 MHz, a leaky barrier the way real concrete passes VHF.
         t.register(Material {
             id: MaterialId(1),
             name: "stone",
-            atten_db_per_m_at_ref: 25.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 1.0,
-            pivot_frequency_hz: 30e6,
+            eps_a: 5.3,
+            eps_b: 0.0,
+            sigma_c: 0.012,
+            sigma_d: 0.5,
+            pivot_frequency_hz: 1.0e6,
         });
-        // Water at voxel scale. One block of water is a small pond
-        // cross-section, very lossy. Treated as conductivity-dominated
-        // (sea-water-like): where ionic conductivity dwarfs the
-        // displacement current the loss follows the skin effect, rising
-        // as the square root of frequency, so the exponent is 0.5 rather
-        // than the earlier linear-plus 1.2.
+        // Water. Fresh water at VHF has very high permittivity near 80 and
+        // ionic conductivity that makes it strongly lossy; about 18 dB/m
+        // at 145 MHz, a real obstacle and a good reflector.
         t.register(Material {
             id: MaterialId(2),
             name: "water",
-            atten_db_per_m_at_ref: 40.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 0.5,
-            pivot_frequency_hz: 30e6,
+            eps_a: 80.0,
+            eps_b: 0.0,
+            sigma_c: 0.1,
+            sigma_d: 0.0,
+            pivot_frequency_hz: 1.0e6,
         });
-        // Wood. Dry low-loss dielectric: a roughly constant loss tangent
-        // makes attenuation grow about linearly with frequency, so the
-        // exponent is 1.0 rather than the earlier 0.8.
+        // Wood. Dry low loss dielectric, permittivity near 2, square root
+        // frequency conductivity. Under 1 dB/m at 145 MHz.
         t.register(Material {
             id: MaterialId(3),
             name: "wood",
-            atten_db_per_m_at_ref: 2.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 1.0,
-            pivot_frequency_hz: 30e6,
+            eps_a: 2.0,
+            eps_b: 0.0,
+            sigma_c: 0.002,
+            sigma_d: 0.5,
+            pivot_frequency_hz: 1.0e6,
         });
-        // Glass. Low-loss dielectric like wood; the near-constant loss
-        // tangent gives a near-linear frequency dependence, so the
-        // exponent is 1.0 rather than the earlier 0.6.
+        // Glass. Low loss dielectric, permittivity near 6; essentially
+        // transparent at VHF, a fraction of a dB per metre.
         t.register(Material {
             id: MaterialId(4),
             name: "glass",
-            atten_db_per_m_at_ref: 3.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 1.0,
-            pivot_frequency_hz: 30e6,
+            eps_a: 6.0,
+            eps_b: 0.0,
+            sigma_c: 0.001,
+            sigma_d: 0.5,
+            pivot_frequency_hz: 1.0e6,
         });
-        // Dirt and similar earth materials. Moist soil behaves as a
-        // lossy dielectric with a near-linear frequency dependence over
-        // the band, so the exponent stays at 1.0.
+        // Dirt. Standard average ground, permittivity near 13 and
+        // conductivity near 0.005 S/m held flat across HF to VHF, the
+        // antenna engineering reference value. About 2.3 dB/m at 145 MHz.
         t.register(Material {
             id: MaterialId(5),
             name: "dirt",
-            atten_db_per_m_at_ref: 15.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 1.0,
-            pivot_frequency_hz: 30e6,
+            eps_a: 13.0,
+            eps_b: 0.0,
+            sigma_c: 0.005,
+            sigma_d: 0.0,
+            pivot_frequency_hz: 1.0e6,
         });
-        // Leaves and foliage. Light scatterer. Vegetation attenuation
-        // grows roughly as the square root of frequency in the standard
-        // foliage models, so the exponent stays at 0.5.
+        // Leaves. Foliage is a light scatterer with permittivity near 1.5
+        // and square root frequency loss; about 1 dB/m at 145 MHz.
         t.register(Material {
             id: MaterialId(6),
             name: "leaves",
-            atten_db_per_m_at_ref: 1.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 0.5,
-            pivot_frequency_hz: 30e6,
+            eps_a: 1.5,
+            eps_b: 0.0,
+            sigma_c: 0.002,
+            sigma_d: 0.5,
+            pivot_frequency_hz: 1.0e6,
         });
-        // Iron. At voxel scale this is a solid 1 m cube of ferrous
-        // metal; shielding is effectively absolute once thickness
-        // exceeds a few skin depths. As a good conductor its loss
-        // follows the skin effect, rising as the square root of
-        // frequency, so the exponent is 0.5.
+        // Iron. A solid metre of ferrous metal is a near perfect electric
+        // conductor: a very large constant conductivity drives the
+        // attenuation past any reasonable budget, so the voxel is opaque
+        // and, for the reflection model, a near total reflector.
         t.register(Material {
             id: MaterialId(7),
             name: "iron",
-            atten_db_per_m_at_ref: 200.0,
-            reference_frequency_hz: 100e6,
-            scaling_exponent: 0.5,
-            pivot_frequency_hz: 30e6,
+            eps_a: 1.0,
+            eps_b: 0.0,
+            sigma_c: 1.0e7,
+            sigma_d: 0.0,
+            pivot_frequency_hz: 1.0e6,
         });
         t
     }
 
-    /// Register a new material. The id must be the next free slot
-    /// or an existing slot; assignment writes the entry in place.
+    /// Register a new material. The id must be the next free slot or an
+    /// existing slot; assignment writes the entry in place.
     pub fn register(&mut self, m: Material) {
         let idx = m.id.0 as usize;
         if idx >= self.entries.len() {
-            self.entries
-                .resize(idx + 1, AIR_PLACEHOLDER);
+            self.entries.resize(idx + 1, AIR_PLACEHOLDER);
         }
         self.entries[idx] = m;
     }
 
-    /// Look up by id. Out of range ids fall back to air, which is
-    /// the safe default for unconfigured blocks during early world
-    /// load.
+    /// Look up by id. Out of range ids fall back to air, which is the safe
+    /// default for unconfigured blocks during early world load.
     pub fn get(&self, id: MaterialId) -> &Material {
-        self.entries
-            .get(id.0 as usize)
-            .unwrap_or(&AIR_PLACEHOLDER)
+        self.entries.get(id.0 as usize).unwrap_or(&AIR_PLACEHOLDER)
     }
 
     /// Number of registered slots, including unfilled placeholders.
@@ -238,16 +330,16 @@ impl MaterialTable {
     pub fn entries(&self) -> &[Material] {
         &self.entries
     }
-
 }
 
-/// Placeholder used when an id falls outside the table or a slot
-/// has not been registered yet. Always behaves like air.
+/// Placeholder used when an id falls outside the table or a slot has not
+/// been registered yet. Always behaves like vacuum.
 const AIR_PLACEHOLDER: Material = Material {
     id: MaterialId(0),
     name: "air-placeholder",
-    atten_db_per_m_at_ref: 0.0,
-    reference_frequency_hz: 100e6,
-    scaling_exponent: 0.0,
-    pivot_frequency_hz: 100e6,
+    eps_a: 1.0,
+    eps_b: 0.0,
+    sigma_c: 0.0,
+    sigma_d: 0.0,
+    pivot_frequency_hz: 1.0e6,
 };

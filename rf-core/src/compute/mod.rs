@@ -268,7 +268,7 @@ impl ComputeContext {
         let mut queries = vec![0.0_f32; 2 * QUERY_STRIDE];
         pack_query(&mut queries, 0, [0.0, 1.0, 0.0], [20.0, 1.0, 0.0]);
         pack_query(&mut queries, 1, [0.0, 1.0, 10.0], [20.0, 1.0, 10.0]);
-        let freq = 100.0e6_f64; // reference frequency: power law bypassed, exact
+        let freq = 100.0e6_f64; // full plane wave formula on both backends
         let budget = 300.0_f32;
 
         let mut cpu = [0.0_f32; 2];

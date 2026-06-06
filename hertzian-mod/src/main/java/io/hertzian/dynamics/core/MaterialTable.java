@@ -7,9 +7,19 @@ import java.lang.foreign.ValueLayout;
 import io.hertzian.dynamics.core.internal.Native;
 
 /**
- * Material attenuation table. Pre-populated with air, stone, water,
- * wood, glass, dirt, leaves and iron; callers may register custom
- * entries with {@link #register}.
+ * Material attenuation table. Pre-populated with air, stone, water, wood,
+ * glass, dirt, leaves and iron, each described by frequency dependent
+ * electrical properties. Callers may register custom entries with
+ * {@link #register}.
+ *
+ * <p>
+ * A material is defined by the ITU-R P.2040 power law form: the real
+ * relative permittivity is {@code epsilon_r = epsA * f_GHz^epsB} and the
+ * conductivity is {@code sigma = sigmaC * f_GHz^sigmaD} in siemens per
+ * metre, with frequency in gigahertz. The native core derives the complex
+ * permittivity, the per metre absorption and the Fresnel reflection
+ * coefficients from these four numbers, so the same pair of curves drives
+ * both penetration loss and reflection consistently.
  */
 public final class MaterialTable implements AutoCloseable {
 
@@ -35,20 +45,23 @@ public final class MaterialTable implements AutoCloseable {
         }
     }
 
-    public void register(int materialId, float attenuationDbPerMAtRef, float referenceFrequencyHz,
-        float scalingExponent, float pivotFrequencyHz) {
+    /**
+     * Register or overwrite a material slot from its electrical
+     * properties. {@code epsA} and {@code epsB} parameterise the
+     * permittivity power law, {@code sigmaC} and {@code sigmaD} the
+     * conductivity power law in siemens per metre, and
+     * {@code pivotFrequencyHz} clamps the property evaluation frequency
+     * from below.
+     */
+    public void register(int materialId, float epsA, float epsB, float sigmaC, float sigmaD,
+                         float pivotFrequencyHz) {
         checkOpen();
         if ((materialId & 0xFFFF0000) != 0) {
             throw new IllegalArgumentException("material id out of u16 range: " + materialId);
         }
         try {
-            int rc = (int) Native.HD_MATERIALS_REGISTER.invokeExact(
-                handle,
-                (short) materialId,
-                attenuationDbPerMAtRef,
-                referenceFrequencyHz,
-                scalingExponent,
-                pivotFrequencyHz);
+            int rc = (int) Native.HD_MATERIALS_REGISTER
+                    .invokeExact(handle, (short) materialId, epsA, epsB, sigmaC, sigmaD, pivotFrequencyHz);
             ErrorCode.throwIfError(rc, "hd_materials_register");
         } catch (HertzianException e) {
             throw e;
