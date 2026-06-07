@@ -1,54 +1,58 @@
 //! PropagationSolver: compose every physical effect into one query.
 //!
-//! Construction holds borrowed references to the voxel grid, the
-//! material table and the ionospheric LUT, so the same solver can
-//! serve many (Tx, Rx, frequency) requests in a tight loop without
-//! re-fetching shared resources. Per-call state (the Rayleigh fader)
-//! is passed in by the caller, so the solver itself is `Send + Sync`
-//! once the borrowed objects are.
+//! Construction holds borrowed references to the voxel grid, the material
+//! table and the ionospheric LUT, so the same solver can serve many (Tx,
+//! Rx, frequency) requests in a tight loop without re-fetching shared
+//! resources. Per-call state (the Rayleigh fader) is passed in by the
+//! caller, so the solver itself is Send + Sync once the borrowed objects
+//! are.
 //!
 //! Obstruction model
 //!
 //! Obstruction loss is computed by the Fresnel aperture model in
 //! `fresnel_aperture_loss_db`. It samples the first Fresnel zone with a
-//! bundle of rays and weights their transmission toward the centre of
-//! the zone, so lateral and near line obstacles count, the loss grades
-//! smoothly as an obstacle nears the line, and the signal diffracts
-//! around a small block instead of being hard blocked. The standalone
-//! knife edge functions in `propagation::knife_edge` remain for callers
-//! that work from a one dimensional terrain profile.
+//! bundle of rays bent to converge on the true endpoints and weights their
+//! transmission toward the centre of the zone, so lateral and near line
+//! obstacles count, the loss grades smoothly as an obstacle nears the
+//! line, and the signal diffracts around a small block instead of being
+//! hard blocked. The standalone knife edge functions in
+//! propagation::knife_edge remain for callers that work from a one
+//! dimensional terrain profile.
 //!
-//! Why the rays converge at the endpoints
+//! Multipath model selection
 //!
-//! The first Fresnel zone is an ellipsoid with foci at the transmitter
-//! and the receiver: it pinches to a point at each end and bulges to its
-//! widest at the midpoint. An earlier version of the aperture model cast
-//! rays parallel to the line of sight, a cylinder rather than an
-//! ellipsoid. That cylinder had a fatal flaw at the endpoints: a small
-//! obstruction wrapped tightly around the transmitter, such as a metal
-//! box sealing it in, only intersected the one central ray while the
-//! rest of the wide bundle flew past it metres to the side, so a sealed
-//! transmitter still delivered a near perfect signal. The rays now bend:
-//! each is a two segment polyline from the true transmitter point, out
-//! to a point offset from the midpoint, and back to the true receiver
-//! point. Every ray therefore passes through whatever sits at the
-//! transmitter and at the receiver, so sealing the transmitter in iron
-//! blocks the entire bundle and closes the path, while the bundle still
-//! fans out at the midpoint to catch obstacles beside the line. The two
-//! segments together traverse the same total length as the old single
-//! ray, so this corrects the geometry at no extra cost.
+//! The ground wave reflection behaviour is chosen by SolverConfig's
+//! multipath_model:
+//!
+//!   None     direct ray plus obstruction and curvature only, no
+//!            reflection and no stochastic fade.
+//!   TwoRay   adds the single two-ray ground reflection from
+//!            propagation::reflection and a stochastic Rayleigh residual
+//!            fade. The light default.
+//!   Multipath  uses the deterministic image-method channel from
+//!            propagation::multipath, which subsumes the ground reflection,
+//!            adds wall, floor and ceiling reflections, and replaces the
+//!            stochastic fade with a geometric channel. Heavier, opt in.
+//!
+//! Ground reflection and double counting
+//!
+//! The ground is a reflector, not merely an absorber, so its effect is
+//! carried by the reflection term rather than by the aperture absorption.
+//! To keep the two from counting the same ground interaction twice, the
+//! aperture bundle clamps every ray vertex to stay at or above the local
+//! ground surface under the path midpoint: the rays graze along the ground
+//! instead of digging into it. The two regimes genuinely overlap at long
+//! range, where the d^4 reflection behaviour is exactly the regime in which
+//! the ground sits deep inside the first Fresnel zone, which is why the
+//! clamp is necessary rather than cosmetic. In Multipath mode the aperture
+//! transmission becomes the direct path amplitude fed into the channel sum
+//! and is not added to the budget a second time.
 //!
 //! Earth curvature
 //!
-//! On top of voxel obstruction the solver adds the radio horizon. The
-//! flat world would otherwise let a ground wave run forever; the
-//! curvature term from `propagation::curvature` models the Earth bulge
-//! rising into the path past the horizon and folds the result into the
-//! ground wave candidate only. Skywave is left untouched because it
-//! reaches over the horizon through the ionosphere, which is exactly why
-//! a HF skywave path outruns the ground wave at long range. The term is
-//! reported in the breakdown's `diffraction_db` field, which the
-//! aperture rework had freed up.
+//! On top of voxel obstruction the solver adds the radio horizon from
+//! propagation::curvature, folded into the ground wave candidate only and
+//! reported in the breakdown's diffraction field.
 
 use core::f32::consts::PI;
 
@@ -58,11 +62,14 @@ use crate::propagation::fading::RayleighFading;
 use crate::propagation::friis::{free_space_loss_db, wavelength_m, SPEED_OF_LIGHT_M_S};
 use crate::propagation::ionosphere::IonosphereLut;
 use crate::propagation::material::{MaterialId, MaterialTable};
+use crate::propagation::multipath::{multipath_channel, MultipathModel, MultipathParams};
+use crate::propagation::reflection::{two_ray_gain_db, Polarization};
 use crate::propagation::voxel::{raycast_absorption_db, VoxelGrid};
 use crate::types::propagation::{LossBreakdown, PathLoss};
 
-/// Tunable thresholds for the solver. Defaults match the engine's
-/// design targets; the JNI layer lets Java override the curvature set.
+/// Tunable thresholds for the solver. Defaults match the engine's design
+/// targets; the JNI layer lets a world override the curvature and
+/// multipath sets at runtime.
 #[derive(Copy, Clone, Debug)]
 pub struct SolverConfig {
     /// Maximum absorption to accumulate along the ray before the solver
@@ -96,8 +103,27 @@ pub struct SolverConfig {
     /// reaches further than one on the ground. Defaults to sea level 63.
     pub curvature_ground_ref_m: f32,
     /// Floor on antenna height above the reference, in metres, so a radio
-    /// at or below the reference still has a small non zero horizon.
+    /// at or below the reference still has a small non zero horizon. Also
+    /// used as the height floor for the reflection geometry.
     pub curvature_min_height_m: f32,
+    /// Which multipath model to apply to ground waves.
+    pub multipath_model: MultipathModel,
+    /// Antenna polarization for the reflection Fresnel coefficients.
+    /// Vertical is the realistic default for a whip antenna.
+    pub reflection_polarization: Polarization,
+    /// Maximum depth, in decibels, of a destructive reflection null. Caps
+    /// the multipath fade so it never runs to negative infinity. A real
+    /// receiver never sees an infinitely deep null; the value stands in
+    /// for finite bandwidth and surface roughness.
+    pub reflection_null_floor_db: f32,
+    /// Maximum reflection order for the Multipath model image series.
+    pub multipath_max_bounces: u32,
+    /// How far, in metres, a wall can be from the path and still count as
+    /// a reflector in the Multipath model.
+    pub multipath_probe_range_m: f32,
+    /// Maximum constructive gain, in decibels, of the Multipath channel
+    /// sum, capping the waveguide build up.
+    pub multipath_max_gain_db: f32,
 }
 
 impl Default for SolverConfig {
@@ -114,6 +140,12 @@ impl Default for SolverConfig {
             earth_k_factor: curvature::STANDARD_K_FACTOR,
             curvature_ground_ref_m: 63.0,
             curvature_min_height_m: 1.0,
+            multipath_model: MultipathModel::TwoRay,
+            reflection_polarization: Polarization::Vertical,
+            reflection_null_floor_db: 30.0,
+            multipath_max_bounces: 6,
+            multipath_probe_range_m: 64.0,
+            multipath_max_gain_db: 12.0,
         }
     }
 }
@@ -164,6 +196,18 @@ impl<'a, G: VoxelGrid> PropagationSolver<'a, G> {
 
         let free_db = free_space_loss_db(dist_m, inputs.frequency_hz);
 
+        // Local ground under each endpoint and under the path midpoint.
+        let tx_ground_opt = self.local_ground_m(inputs.tx_pos);
+        let rx_ground_opt = self.local_ground_m(inputs.rx_pos);
+        let tx_ground = tx_ground_opt.unwrap_or(self.config.curvature_ground_ref_m);
+        let rx_ground = rx_ground_opt.unwrap_or(self.config.curvature_ground_ref_m);
+        let mid = [
+            (inputs.tx_pos[0] + inputs.rx_pos[0]) * 0.5,
+            (inputs.tx_pos[1] + inputs.rx_pos[1]) * 0.5,
+            (inputs.tx_pos[2] + inputs.rx_pos[2]) * 0.5,
+        ];
+        let ground_mid = self.local_ground_m(mid);
+
         let aperture_db = fresnel_aperture_loss_db(
             self.grid,
             self.materials,
@@ -171,31 +215,14 @@ impl<'a, G: VoxelGrid> PropagationSolver<'a, G> {
             inputs.rx_pos,
             inputs.frequency_hz,
             self.config.absorption_budget_db,
+            ground_mid,
         );
 
+        let ground_d = (dx * dx + dz * dz).sqrt();
+        let h1 = (inputs.tx_pos[1] - tx_ground).max(self.config.curvature_min_height_m);
+        let h2 = (inputs.rx_pos[1] - rx_ground).max(self.config.curvature_min_height_m);
+
         let curvature_db = if self.config.model_curvature {
-            let ground_d = (dx * dx + dz * dz).sqrt();
-            // Antenna height is measured above the local terrain surface
-            // under each endpoint, not above a single global reference
-            // plane. The global plane treated a radio standing on a hill
-            // at world y = 110 as a 47 metre mast, which gave it a vastly
-            // inflated radio horizon. Scanning the voxel grid down from the
-            // endpoint to the first solid voxel recovers the real ground
-            // under it, so a set sitting on the ground is one metre high
-            // wherever the ground happens to be. The endpoint chunks are
-            // loaded, a player or a force loaded broadcaster is there, so
-            // the scan finds ground; if it does not, it falls back to the
-            // configured global reference.
-            let tx_ground = self
-                .local_ground_m(inputs.tx_pos)
-                .unwrap_or(self.config.curvature_ground_ref_m);
-            let rx_ground = self
-                .local_ground_m(inputs.rx_pos)
-                .unwrap_or(self.config.curvature_ground_ref_m);
-            let h1 = (inputs.tx_pos[1] - tx_ground)
-                .max(self.config.curvature_min_height_m);
-            let h2 = (inputs.rx_pos[1] - rx_ground)
-                .max(self.config.curvature_min_height_m);
             curvature::curvature_loss_db(
                 h1, h2, ground_d, inputs.frequency_hz,
                 self.config.earth_radius_m, self.config.earth_k_factor,
@@ -204,7 +231,66 @@ impl<'a, G: VoxelGrid> PropagationSolver<'a, G> {
             0.0
         };
 
-        let ground_wave_db = free_db + aperture_db + curvature_db;
+        // Branch on the multipath model. Each branch fills in the
+        // obstruction and reflection breakdown, the ground wave loss to
+        // compare against skywave, the stochastic fade, and the channel
+        // delay spread.
+        let mut rms_delay_spread_s = 0.0_f32;
+        let (obstruction_db, reflection_db, ground_wave_db, fade_active) = match self
+            .config
+            .multipath_model
+        {
+            MultipathModel::None => {
+                (aperture_db, 0.0, free_db + aperture_db + curvature_db, false)
+            }
+            MultipathModel::TwoRay => {
+                let refl_db = if tx_ground_opt.is_some() && rx_ground_opt.is_some() && ground_d > 1.0
+                {
+                    self.ground_reflection_loss(inputs, tx_ground, rx_ground, h1, h2, ground_d)
+                } else {
+                    0.0
+                };
+                (
+                    aperture_db,
+                    refl_db,
+                    free_db + aperture_db + curvature_db + refl_db,
+                    true,
+                )
+            }
+            MultipathModel::Multipath => {
+                let direct_t = 10.0_f32.powf(-aperture_db / 20.0);
+                let params = MultipathParams {
+                    max_bounces: self.config.multipath_max_bounces,
+                    probe_range_m: self.config.multipath_probe_range_m,
+                    polarization: self.config.reflection_polarization,
+                    null_floor_db: self.config.reflection_null_floor_db,
+                    max_gain_db: self.config.multipath_max_gain_db,
+                };
+                let res = multipath_channel(
+                    self.grid,
+                    self.materials,
+                    inputs.tx_pos,
+                    inputs.rx_pos,
+                    inputs.frequency_hz,
+                    self.config.absorption_budget_db,
+                    direct_t,
+                    &params,
+                );
+                rms_delay_spread_s = res.rms_delay_spread_s;
+                // The channel total folds in both the line of sight
+                // obstruction (through the direct path amplitude) and the
+                // reflections. Report the obstruction separately and put
+                // the net reflection contribution beyond it in the
+                // reflection field, so the two sum back to the total.
+                let total_mp = res.total_loss_db;
+                (
+                    aperture_db,
+                    total_mp - aperture_db,
+                    free_db + curvature_db + total_mp,
+                    false,
+                )
+            }
+        };
 
         let try_skywave = inputs.frequency_hz >= self.config.skywave_lower_band_hz
             && inputs.frequency_hz <= self.config.skywave_upper_band_hz
@@ -230,7 +316,7 @@ impl<'a, G: VoxelGrid> PropagationSolver<'a, G> {
         };
 
         let gain_db = 10.0 * (inputs.tx_gain.max(1e-9).log10() + inputs.rx_gain.max(1e-9).log10());
-        let fade_db = fading.sample_db();
+        let fade_db = if fade_active { fading.sample_db() } else { 0.0 };
 
         let total_db = chosen_path_db - gain_db - fade_db;
         let linear = if total_db.is_finite() {
@@ -255,22 +341,72 @@ impl<'a, G: VoxelGrid> PropagationSolver<'a, G> {
                 } else {
                     free_db
                 },
-                absorption_db: aperture_db,
+                absorption_db: obstruction_db,
                 diffraction_db: if virtual_dist_m.is_some() { 0.0 } else { curvature_db },
+                reflection_db: if virtual_dist_m.is_some() { 0.0 } else { reflection_db },
                 ionospheric_db: ion_db,
                 fading_db: -fade_db,
             },
             doppler_hz,
             delay_seconds,
+            rms_delay_spread_s: if virtual_dist_m.is_some() { 0.0 } else { rms_delay_spread_s },
         }
+    }
+
+    /// Loss contribution of the two-ray ground reflection at this path, in
+    /// decibels. Positive is a net loss (a multipath null), negative is a
+    /// net gain (constructive interference). Used only in TwoRay mode.
+    fn ground_reflection_loss(
+        &self,
+        inputs: PropagationInputs,
+        tx_ground: f32,
+        rx_ground: f32,
+        h_t: f32,
+        h_r: f32,
+        ground_d: f32,
+    ) -> f32 {
+        let frac = h_t / (h_t + h_r);
+        let refl_x = inputs.tx_pos[0] + (inputs.rx_pos[0] - inputs.tx_pos[0]) * frac;
+        let refl_z = inputs.tx_pos[2] + (inputs.rx_pos[2] - inputs.tx_pos[2]) * frac;
+        let start_y = inputs.tx_pos[1].max(inputs.rx_pos[1]);
+        let refl_ground = self
+            .local_ground_m([refl_x, start_y, refl_z])
+            .unwrap_or((tx_ground + rx_ground) * 0.5);
+
+        let vs = self.grid.voxel_size_m().max(1e-3);
+        let gx = (refl_x / vs).floor() as i32;
+        let gz = (refl_z / vs).floor() as i32;
+        let gy = (refl_ground / vs).floor() as i32 - 1;
+        let ground_id = self.grid.material_at(gx, gy, gz);
+        if ground_id == MaterialId::AIR {
+            return 0.0;
+        }
+        let (eps_r, eps_im) = self.materials.get(ground_id).complex_permittivity(inputs.frequency_hz);
+
+        let refl_point = [refl_x, refl_ground, refl_z];
+        let abs1 = raycast_absorption_db(
+            self.grid, self.materials, inputs.tx_pos, refl_point,
+            inputs.frequency_hz, self.config.absorption_budget_db,
+        );
+        let abs2 = raycast_absorption_db(
+            self.grid, self.materials, refl_point, inputs.rx_pos,
+            inputs.frequency_hz, self.config.absorption_budget_db,
+        );
+        let refl_abs_db = (abs1 + abs2).min(self.config.absorption_budget_db);
+
+        let lambda = wavelength_m(inputs.frequency_hz) as f32;
+        let gain_db = two_ray_gain_db(
+            eps_r, eps_im, h_t, h_r, ground_d, lambda, refl_abs_db,
+            self.config.reflection_polarization, self.config.reflection_null_floor_db,
+        );
+        let clamped = gain_db.clamp(-self.config.reflection_null_floor_db, 6.0);
+        -clamped
     }
 
     /// Height in metres of the terrain surface directly under a world
     /// position, found by scanning the voxel grid downward from the
     /// position to the first non air voxel. Returns the top face of that
-    /// voxel. None when no solid voxel is found within the scan window,
-    /// which happens when the endpoint's chunk is not in the grid; the
-    /// caller then falls back to the global ground reference.
+    /// voxel. None when no solid voxel is found within the scan window.
     ///
     /// The scan window is bounded so the cost stays a fixed small number
     /// of grid lookups per endpoint. A window of 96 voxels covers the
@@ -294,14 +430,17 @@ impl<'a, G: VoxelGrid> PropagationSolver<'a, G> {
     }
 }
 
-/// Number of sample rays the Fresnel aperture model casts across the
-/// first Fresnel zone at its widest setting.
+/// Number of sample rays the Fresnel aperture model casts across the first
+/// Fresnel zone at its widest setting.
 const MAX_APERTURE_SAMPLES: usize = 24;
 
-/// Loss in decibels from obstruction of the first Fresnel zone between
-/// tx and rx. The rays are bent so they converge to the true endpoints;
-/// see the module docs for why a parallel bundle let a sealed
-/// transmitter still transmit.
+/// Loss in decibels from obstruction of the first Fresnel zone between tx
+/// and rx. The rays are bent so they converge to the true endpoints; a
+/// parallel bundle would let a sealed transmitter still transmit, because
+/// only the one central ray would pass through whatever wraps the
+/// endpoint. When `ground_clamp_y` is Some, every ray vertex is clamped to
+/// stay at or above that height, which keeps the bundle from digging into
+/// the ground and double counting it against the reflection term.
 fn fresnel_aperture_loss_db<G: VoxelGrid>(
     grid: &G,
     materials: &MaterialTable,
@@ -309,6 +448,7 @@ fn fresnel_aperture_loss_db<G: VoxelGrid>(
     rx: [f32; 3],
     frequency_hz: f64,
     budget_db: f32,
+    ground_clamp_y: Option<f32>,
 ) -> f32 {
     let dx = rx[0] - tx[0];
     let dy = rx[1] - tx[1];
@@ -330,7 +470,6 @@ fn fresnel_aperture_loss_db<G: VoxelGrid>(
     let (u, v) = perpendicular_basis(dir);
     let golden_angle = PI * (3.0 - 5.0_f32.sqrt());
 
-    // Midpoint of the line of sight; the rays bend out from here.
     let mid = [
         (tx[0] + rx[0]) * 0.5,
         (tx[1] + rx[1]) * 0.5,
@@ -354,10 +493,12 @@ fn fresnel_aperture_loss_db<G: VoxelGrid>(
             u[1] * (radius * c) + v[1] * (radius * s),
             u[2] * (radius * c) + v[2] * (radius * s),
         ];
-        // Bend vertex offset from the midpoint. The ray runs from the
-        // true tx point to this vertex and on to the true rx point, so
-        // it pinches at both endpoints and bulges in the middle.
-        let bend = [mid[0] + off[0], mid[1] + off[1], mid[2] + off[2]];
+        let mut bend = [mid[0] + off[0], mid[1] + off[1], mid[2] + off[2]];
+        if let Some(gy) = ground_clamp_y {
+            if bend[1] < gy {
+                bend[1] = gy;
+            }
+        }
 
         let abs1 = raycast_absorption_db(grid, materials, tx, bend, frequency_hz, budget_db);
         let abs2 = raycast_absorption_db(grid, materials, bend, rx, frequency_hz, budget_db);

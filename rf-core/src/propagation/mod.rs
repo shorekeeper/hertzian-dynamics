@@ -35,11 +35,15 @@ pub mod curvature;
 pub mod ionosphere;
 pub mod fading;
 pub mod doppler;
+pub mod reflection;
+pub mod multipath;
 pub mod solver;
 
 pub use doppler::doppler_shift_hz;
 pub use fading::RayleighFading;
 pub use friis::{free_space_loss_db, free_space_loss_linear, wavelength_m, SPEED_OF_LIGHT_M_S};
+pub use reflection::{fresnel_reflection, two_ray_gain_db, Polarization};
+pub use multipath::{multipath_channel, MultipathModel, MultipathParams, MultipathResult};
 pub use ionosphere::{IonosphereLut, IonosphereSample, SolarActivity};
 pub use knife_edge::{
     bullington_equivalent_edge, deygout_loss_db, diffraction_loss_db, fresnel_parameter,
