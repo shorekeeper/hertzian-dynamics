@@ -28,32 +28,35 @@ public final class GuiJammer extends HertzianGui {
         this.tileY = tile.yCoord;
         this.tileZ = tile.zCoord;
         this.tileDim = tile.getWorldObj().provider.dimensionId;
-        this.panelWidth = 240;
+        this.panelWidth = 264;
         this.panelHeight = 200;
     }
 
     @Override
     protected void layoutWidgets() {
         // Activity toggle + profile switch in a row.
+        int gap = 10;
+        int toggleW = 80;
+        int profileW = 110;
+
+        int total = toggleW + gap + profileW;
+        int startX = panelLeft + (panelWidth - total) / 2;
+        int y = panelTop + 100;
+
+        // Toggle
+        buttonList.add(new Buttons.ToggleButton(BTN_TOGGLE, startX, y, toggleW, 20, "JAMMING", "OFF", tile.active()));
+
+        // Profile
         buttonList.add(
-            new Buttons.ToggleButton(
-                BTN_TOGGLE,
-                panelLeft + 20,
-                panelTop + 100,
-                80,
-                20,
-                "JAMMING",
-                "OFF",
-                tile.active()));
-        buttonList.add(
-            new GuiButton(BTN_PROFILE, panelLeft + 110, panelTop + 100, 110, 20, "Profile: " + tile.jamProfileLabel()));
+            new GuiButton(BTN_PROFILE, startX + toggleW + gap, y, profileW, 20, "Profile: " + tile.jamProfileLabel()));
 
         // Frequency step row.
         double[] steps = { -1_000_000, -100_000, -12_500, 12_500, 100_000, 1_000_000 };
         String[] labels = { "-1M", "-100k", "-12.5k", "+12.5k", "+100k", "+1M" };
-        int btnW = 36, btnH = 16, gap = 4;
+        int btnW = 36, btnH = 16;
+        gap = 4;
+        total = btnW * steps.length + gap * (steps.length - 1);
         int row = panelTop + 70;
-        int total = btnW * steps.length + gap * (steps.length - 1);
         int start = panelLeft + (panelWidth - total) / 2;
         for (int i = 0; i < steps.length; i++) {
             buttonList.add(
@@ -81,7 +84,9 @@ public final class GuiJammer extends HertzianGui {
             button.displayString = "Profile: " + tile.jamProfileLabel();
             sendUpdate();
         } else if (button instanceof Buttons.StepButton) {
-            tile.setCarrierHz(tile.carrierHz() + ((Buttons.StepButton) button).deltaHz);
+            double delta = ((Buttons.StepButton) button).deltaHz;
+            if (isShiftKeyDown()) delta *= 10.0;
+            tile.setCarrierHz(tile.carrierHz() + delta);
             sendUpdate();
         }
     }
@@ -110,11 +115,11 @@ public final class GuiJammer extends HertzianGui {
             panelLeft + panelWidth / 2,
             panelTop + 62,
             tile.active() ? COL_DANGER : COL_LABEL);
-        drawString(
-            fontRendererObj,
+        fontRendererObj.drawSplitString(
             "Active jammer drowns nearby receivers tuned to its band.",
             panelLeft + 8,
-            panelTop + panelHeight - 16,
+            panelTop + panelHeight - 28,
+            panelWidth - 16,
             COL_LABEL);
     }
 }
